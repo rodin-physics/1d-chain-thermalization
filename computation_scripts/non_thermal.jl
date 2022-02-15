@@ -1,53 +1,118 @@
-include("../src/main.jl")
+using Distributed
+
+proc_num = 5
+addprocs(proc_num - nprocs())
+
+@everywhere include("../src/main.jl")
 
 system = load_object("precomputed/systems/System_K1_k20_m1_d60_l500.jld2")
 
 d = 60
 
-M = 1 / 2                           # Mass of the mobile particles
-
-s = 1 / 4
-F = 1
-
-x0 = [0.5,1.5, 10.5, 15.5]
-v0 = [0, 3.0, 0, 0]
-# x0 = [3, 4, 5]
-# v0 = [2.5, 2.5, 2.5]
-mem = 1
-τ = 40
-
-Ωmin = √(system.K / system.m)                 # Minimum phonon frequency
+τ = 100                             # Simulation time
+Ωmin = √(system.K / system.m)       # Minimum phonon frequency
 tmin = 2 * π / Ωmin                 # Period of the slowest mode
-δ = system.δ
+δ = system.δ                        # Time step
 n_pts = floor(τ * tmin / δ) |> Int  # Number of time steps
-nChain = 20
-a = 1
-rHs = [a .* collect(0:nChain) for n = 1:n_pts]
+nChain = 50                         # Number of chain atoms tracked
+a = 1                               # Distance between chain atoms
 
+rHs = [a .* collect(1:nChain) for n = 1:n_pts]
 tTraj = ThermalTrajectory(system.k, system.K, system.m, a, system.δ, rHs, nothing, ħ)
-res = motion_solver(system, F, s, M, x0, v0, tTraj, mem, τ)
 
+## Width and Depth Dependence
+s = [1 / 2, 1 / 4, 1 / 8, 1 / 16]
+F = [-1, -1 / 2, -1 / 4, 1 / 4, 1 / 2, 1]
+v0 = [[1 / 2]]
+M = [1 / 2]
+mems = [Inf]
 
-fig = Figure()
-ax = Axis(fig[1, 1])
-l1 = lines!(ax, res.ts, [x[1] for x in res.Rs] )
-l2 = lines!(ax, res.ts, [x[2] for x in res.Rs] , color = my_red)
-l3 = lines!(ax, res.ts, [x[3] for x in res.Rs] , color = my_green)
-l3 = lines!(ax, res.ts, [x[4] for x in res.Rs] , color = my_orange)
-for ii = 1:nChain
-    lines!(
-        ax,
-        res.ts,
-        [x[ii] for x in res.rs] ,
-        color = colorant"rgba(0, 0, 0, 0.35)",
+parameters = [(w, x, y, z, mem) for w in M, x in s, y in F, z in v0, mem in mems] |> vec
+x0 = [5]
+
+m = system.m            # Mass of the chain atoms
+k = system.k            # Spring force constant
+K = system.K            # Confining potential force constant
+δ = system.δ            # Array of time steps
+G_list = system.G       # Memory term
+G_list = [x[1:nChain] for x in G_list]
+
+system = ChainSystem(k, K, m, δ, G_list)
+
+# Base.summarysize(system)
+@showprogress pmap(parameters) do param
+    M = param[1]
+    s = param[2]
+    F = param[3]
+    v0 = param[4]
+    mem = param[5]
+    if (
+        !isfile(
+            "data/Non_Thermal/Single_x0$(x0)_v0$(v0)_Mem$(mem)_s$(s)_F$(F)_M$(M)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
+        )
     )
+        res = motion_solver(system, F, s, M, x0, v0, tTraj, mem, τ)
+        save_object(
+            "data/Non_Thermal/Single_x0$(x0)_v0$(v0)_Mem$(mem)_s$(s)_F$(F)_M$(M)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
+            res,
+        )
+    end
 end
-# l2 = lines!(ax, (1:length(Rs)) .* δ, [x[2] for x in res.Rs] .- 0, color = my_red)
-# l2 = lines!(ax, (1:length(Rs)) .* δ, [x[3] for x in res.Rs] .- 0, color = my_green)
-fig
 
-G(2,[9], K, k, m)
+## Speed and mass dependence
+s = [1 / 4]
+F = [-1 / 2, 1 / 2]
+v0 = [[1 / 2], [1], [2], [4], [5]]
+M = [1 / 2, 1, 2]
+mems = [Inf]
 
+parameters = [(w, x, y, z, mem) for w in M, x in s, y in F, z in v0, mem in mems] |> vec
+x0 = [5]
 
-δ * 4.5
-scatter(δ .* ( 1:700),(Rs[2:end]-Rs[1:end-1])[1:700]./δ)
+@showprogress pmap(parameters) do param
+    M = param[1]
+    s = param[2]
+    F = param[3]
+    v0 = param[4]
+    mem = param[5]
+    if (
+        !isfile(
+            "data/Non_Thermal/Single_x0$(x0)_v0$(v0)_Mem$(mem)_s$(s)_F$(F)_M$(M)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
+        )
+    )
+        res = motion_solver(system, F, s, M, x0, v0, tTraj, mem, τ)
+        save_object(
+            "data/Non_Thermal/Single_x0$(x0)_v0$(v0)_Mem$(mem)_s$(s)_F$(F)_M$(M)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
+            res,
+        )
+    end
+end
+
+## Memory Dependence
+s = [1 / 4]
+F = [-1 / 4, 1 / 4]
+v0 = [[1 / 2]]
+M = [1 / 2]
+mems = [0, 0.05, 0.5, 1, 10, 50, Inf]
+
+parameters = [(w, x, y, z, mem) for w in M, x in s, y in F, z in v0, mem in mems] |> vec
+x0 = [5]
+
+@showprogress pmap(parameters) do param
+    M = param[1]
+    s = param[2]
+    F = param[3]
+    v0 = param[4]
+    mem = param[5]
+    if (
+        !isfile(
+            "data/Non_Thermal/Single_x0$(x0)_v0$(v0)_Mem$(mem)_s$(s)_F$(F)_M$(M)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
+        )
+    )
+        res = motion_solver(system, F, s, M, x0, v0, tTraj, mem, τ)
+        save_object(
+            "data/Non_Thermal/Single_x0$(x0)_v0$(v0)_Mem$(mem)_s$(s)_F$(F)_M$(M)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
+            res,
+        )
+    end
+end

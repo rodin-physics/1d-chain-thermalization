@@ -45,12 +45,12 @@ struct SystemSolution
     K::Float64                  # Confining force constant
     m::Float64                  # Mass of the chain atoms
     ts::Vector{Float64}         # Time steps
-    mem::Float64                # Response array
+    mem::Float64                # Memory in the units of the slowest chain mode
     a::Float64                  # Chain mass spacing
     M::Float64                  # Mass of the mobile atoms
     F::Float64                  # Magnitude of the Gaussian potential
     s::Float64                  # Standard deviation of the potential
-    Rs::Vector{Vector{Float64}}# Positions of mobile atoms. 
+    Rs::Vector{Vector{Float64}} # Positions of mobile atoms. 
     # External vector runs over time, internal over masses
     rs::Vector{Vector{Float64}} # Positions of the chain atom
     # External vector runs over time, internal over masses
