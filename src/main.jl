@@ -66,7 +66,7 @@ end
 # Chain recoil function
 function G(t, ls, K, k, m)
     int_fun(x) = cos.(2 * x * ls) * sin(t * Ω(K, k, m, x)) / Ω(K, k, m, x)
-    res = quadgk(int_fun, 0, π / 2, atol = 1e-5)
+    res = quadgk(int_fun, 0, π / 2)
     return (res[1] * 2 / π / m)
 end
 
@@ -111,11 +111,11 @@ function motion_solver(
     mem::T where {T<:Real},
     τ::T where {T<:Real},
 )
-    m = system.m            # Mass of the chain atoms
-    k = system.k            # Spring force constant
-    K = system.K            # Confining potential force constant
-    δ = system.δ            # Array of time steps
-    G_list = system.G       # Memory term
+    m = system.m        # Mass of the chain atoms
+    k = system.k        # Spring force constant
+    K = system.K        # Confining potential force constant
+    δ = system.δ        # Array of time steps
+    G_list = system.G   # Memory term
     # Check that the thermal trajectory is for the correct system
     if (m != tTraj.m || k != tTraj.k || K != tTraj.K || δ != tTraj.δ)
         error("Thermal trajectory describes a different system. Check your input.")
@@ -135,121 +135,7 @@ function motion_solver(
 
     mem_pts = max(floor(mem * tmin / δ), 1)  # Memory time points.
     # Even if mem == 0, we have to keep a single time point to make sure arrays work.
-    # For zero memory, the recoil contribution is dropped (see line 209)
-
-    # If the precomputed memory is shorter than the simulation time AND shorter
-    # than the desired memory, terminate the calculation.
-    if (length(G_list) < n_pts && length(G_list) < mem_pts)
-        error("Chosen memory and the simulation time exceed the precomputed range.")
-    else
-        # The number of memory pts can be limited by the total simulation time.
-        mem_pts = min(mem_pts, n_pts) |> Int
-        G_list_ = G_list[(end-mem_pts+1):end]
-    end
-
-    # If the desired number of chain particles is greater than what is contained in
-    # the precomputed G, terminate the calculation. Otherwise, retain the appropriate
-    # number of terms
-    if (length(G_list_[1]) < nChain)
-        error("The recoil term does not contain the desired number of chain masses.")
-    else
-        G_list_ = [SymmetricToeplitz(x[1:nChain]) for x in G_list_]
-    end
-
-    # Interaction terms
-    @variables r
-    Dr = Differential(r)
-
-    function U(r)
-        return (F * exp(-r^2 / (2 * s^2)))
-    end
-
-    der_r = expand_derivatives(Dr(U(r)))
-
-    function dU_dr(r_)
-        return (substitute.(der_r, (Dict(r => r_),))[1])
-    end
-
-    ## Arrays
-
-    Rs = [zeros(length(x0)) for n = 1:n_pts]        # Mobile mass position
-    rs = [zeros(nChain) for n = 1:n_pts]            # Chain mass position
-    U_pr_mob = [zeros(length(x0)) for n = 1:n_pts]  # Force on the mobile particles
-    U_pr_chain = [zeros(nChain) for n = 1:n_pts]    # Force on the chain atom
-
-    rs[1] = rHs[1]
-    rs[2] = rHs[2]
-
-    Rs[1] = x0
-    Rs[2] = x0 + v0 * δ
-
-    U_pr = Symbolics.value.([dU_dr(r - R) for r in rs[1], R in Rs[1]])
-    U_pr_chain[1] = sum(U_pr, dims = 2) |> vec
-    U_pr_mob[1] = -sum(U_pr, dims = 1) |> vec
-
-    U_pr = Symbolics.value.([dU_dr(r - R) for r in rs[2], R in Rs[2]])
-    U_pr_chain[2] = sum(U_pr, dims = 2) |> vec
-    U_pr_mob[2] = -sum(U_pr, dims = 1) |> vec
-
-    @showprogress for ii = 3:n_pts
-        nxt = ii        # Next time step index
-        curr = ii - 1   # Current time step index
-        # Get the memory term elements. If the number of elapsed steps is smaller
-        # than the number of elements in the memory term, take the corresponding
-        # number of the most recent elements
-        Gs = G_list_[(mem_pts-min(mem_pts, curr)+1):end]
-        # Get the interaction force elements. If the number of elapsed steps is
-        # smaller than the number of elements in the memory term, take the available
-        # values.
-        Us = U_pr_chain[(curr-min(mem_pts, curr)+1):curr]
-        # If mem == 0, drop the recoil contribution
-        rs[nxt] = rHs[nxt] - δ * mapreduce((G, U) -> G * U, +, Gs, Us) * (mem != 0)
-        Rs[nxt] = -δ^2 / M .* U_pr_mob[curr] + 2 .* Rs[curr] - Rs[curr-1]
-
-        U_pr = Symbolics.value.([dU_dr(r - R) for r in rs[nxt], R in Rs[nxt]])
-        U_pr_chain[nxt] = sum(U_pr, dims = 2) |> vec
-        U_pr_mob[nxt] = -sum(U_pr, dims = 1) |> vec
-    end
-
-    return SystemSolution(k, K, m, ts, mem, tTraj.a, M, F, s, Rs, rs, tTraj.ΩT, tTraj.ħ)
-end
-
-function motion_solver_NEW(
-    system::ChainSystem,
-    F::T where {T<:Real},
-    s::T where {T<:Real},
-    M::T where {T<:Real},
-    x0::Vector{T} where {T<:Real},
-    v0::Vector{T} where {T<:Real},
-    tTraj::ThermalTrajectory,
-    mem::T where {T<:Real},
-    τ::T where {T<:Real},
-)
-    m = system.m                # Mass of the chain atoms
-    k = system.k                # Spring force constant
-    K = system.K                # Confining potential force constant
-    δ = system.δ                # Array of time steps
-    G_list = system.G |> reverse# Memory term
-    # Check that the thermal trajectory is for the correct system
-    if (m != tTraj.m || k != tTraj.k || K != tTraj.K || δ != tTraj.δ)
-        error("Thermal trajectory describes a different system. Check your input.")
-    else
-        rHs = tTraj.rHs
-    end
-
-    nChain = length(rHs[1])
-
-    Ωmin = √(K / m)                     # Minimum phonon frequency
-    tmin = 2 * π / Ωmin                 # Period of the slowest mode
-    n_pts = floor(τ * tmin / δ) |> Int  # Number of time steps
-    ts = δ .* (1:n_pts) |> collect      # Times
-    if length(rHs) < n_pts
-        error("Thermal trajectory provided does not span the necessary time range.")
-    end
-
-    mem_pts = max(floor(mem * tmin / δ), 1)  # Memory time points.
-    # Even if mem == 0, we have to keep a single time point to make sure arrays work.
-    # For zero memory, the recoil contribution is dropped (see line 209)
+    # For zero memory, the recoil contribution is dropped (see line 175 and 184)
 
     # If the precomputed memory is shorter than the simulation time AND shorter
     # than the desired memory, terminate the calculation.
