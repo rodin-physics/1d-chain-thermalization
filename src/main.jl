@@ -8,7 +8,6 @@ using ProgressMeter
 using QuadGK
 using Statistics
 using StatsBase
-using Symbolics
 using ToeplitzMatrices
 ## Parameters
 ħ = 1 / 200                     # Planck's constant
@@ -77,9 +76,7 @@ function mkChainSystem(K, k, m, t_max, ls, d)
     δ = (2 * π / Ωmax) / d              # Time step
     n_pts = floor(t_max / δ) |> Int     # Number of time steps given t_max and δ
     # Precomputing the memory term
-    G_list = @showprogress pmap(jj -> G(δ * jj, ls, K, k, m), 1:n_pts) |> reverse
-    # Note the reversal of G_list. This is done to facilitate the
-    # convolution of G with dU/dr.
+    G_list = @showprogress pmap(jj -> G(δ * jj, ls, K, k, m), 1:n_pts)
     return ChainSystem(k, K, m, δ, G_list)
 end
 
@@ -217,7 +214,89 @@ function motion_solver(
     return SystemSolution(k, K, m, ts, mem, tTraj.a, M, F, s, Rs, rs, tTraj.ΩT, tTraj.ħ)
 end
 
-function auto_corr(l, lag)
-    res = cor(l[1:(end-lag), :], l[(1+lag):end, :])
-    return res
+function motion_solver_NEW(
+    system::ChainSystem,
+    F::T where {T<:Real},
+    s::T where {T<:Real},
+    M::T where {T<:Real},
+    x0::Vector{T} where {T<:Real},
+    v0::Vector{T} where {T<:Real},
+    tTraj::ThermalTrajectory,
+    mem::T where {T<:Real},
+    τ::T where {T<:Real},
+)
+    m = system.m                # Mass of the chain atoms
+    k = system.k                # Spring force constant
+    K = system.K                # Confining potential force constant
+    δ = system.δ                # Array of time steps
+    G_list = system.G |> reverse# Memory term
+    # Check that the thermal trajectory is for the correct system
+    if (m != tTraj.m || k != tTraj.k || K != tTraj.K || δ != tTraj.δ)
+        error("Thermal trajectory describes a different system. Check your input.")
+    else
+        rHs = tTraj.rHs
+    end
+
+    nChain = length(rHs[1])
+
+    Ωmin = √(K / m)                     # Minimum phonon frequency
+    tmin = 2 * π / Ωmin                 # Period of the slowest mode
+    n_pts = floor(τ * tmin / δ) |> Int  # Number of time steps
+    ts = δ .* (1:n_pts) |> collect      # Times
+    if length(rHs) < n_pts
+        error("Thermal trajectory provided does not span the necessary time range.")
+    end
+
+    mem_pts = max(floor(mem * tmin / δ), 1)  # Memory time points.
+    # Even if mem == 0, we have to keep a single time point to make sure arrays work.
+    # For zero memory, the recoil contribution is dropped (see line 209)
+
+    # If the precomputed memory is shorter than the simulation time AND shorter
+    # than the desired memory, terminate the calculation.
+    if (length(G_list) < n_pts && length(G_list) < mem_pts)
+        error("Chosen memory and the simulation time exceed the precomputed range.")
+    else
+        # The number of memory pts can be limited by the total simulation time.
+        mem_pts = min(mem_pts, n_pts) |> Int
+        G_list = δ .* G_list[1:mem_pts]
+    end
+
+    # If the desired number of chain particles is greater than what is contained in
+    # the precomputed G, terminate the calculation. Otherwise, retain the appropriate
+    # number of terms
+    if (length(G_list[1]) < nChain)
+        error("The recoil term does not contain the desired number of chain masses.")
+    else
+        G_list = [SymmetricToeplitz(x[1:nChain]) for x in G_list]
+    end
+
+    function dU_dr(r)
+        return (-F * exp(-r^2 / (2 * s^2)) * r / s^2)
+    end
+    ## Arrays
+    Rs = [zeros(length(x0)) for _ = 1:n_pts]# Mobile mass position
+    rs = rHs[1:n_pts]                       # Chain mass position
+
+    Rs[1] = x0
+    Rs[2] = x0 + v0 * δ
+
+    curr = 1
+    nxt = curr + 2
+    U_pr = [dU_dr(r - R) for r in rs[curr], R in Rs[curr]]
+    U_pr_chain = sum(U_pr, dims = 2) |> vec
+    U_pr_mob = -sum(U_pr, dims = 1) |> vec
+    rs[nxt:nxt+min(mem_pts, n_pts - nxt)] -=
+        G_list[2:min(mem_pts, n_pts - curr)] .* Ref(U_pr_chain .* (mem != 0))
+
+    @showprogress for ii = 3:n_pts
+        nxt = ii        # Next time step index
+        curr = ii - 1   # Current time step index
+        U_pr = [dU_dr(r - R) for r in rs[curr], R in Rs[curr]]
+        U_pr_chain = sum(U_pr, dims = 2) |> vec
+        U_pr_mob = -sum(U_pr, dims = 1) |> vec
+        rs[nxt:nxt+min(mem_pts, n_pts - nxt)] -=
+            G_list[1:min(mem_pts, n_pts - curr)] .* Ref(U_pr_chain .* (mem != 0))
+        Rs[nxt] = -δ^2 / M .* U_pr_mob + 2 .* Rs[curr] - Rs[curr-1]
+    end
+    return SystemSolution(k, K, m, ts, mem, tTraj.a, M, F, s, Rs, rs, tTraj.ΩT, tTraj.ħ)
 end
