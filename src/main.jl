@@ -171,7 +171,7 @@ function motion_solver(
     U_pr = [dU_dr(r - R) for r in rs[curr], R in Rs[curr]]
     U_pr_chain = sum(U_pr, dims = 2) |> vec
     U_pr_mob = -sum(U_pr, dims = 1) |> vec
-    rs[nxt:nxt+min(mem_pts, n_pts - nxt)] -=
+    rs[nxt:nxt+min(mem_pts - 2, n_pts - nxt)] -=
         G_list[2:min(mem_pts, n_pts - curr)] .* Ref(U_pr_chain .* (mem != 0))
 
     @showprogress for ii = 3:n_pts
@@ -180,7 +180,7 @@ function motion_solver(
         U_pr = [dU_dr(r - R) for r in rs[curr], R in Rs[curr]]
         U_pr_chain = sum(U_pr, dims = 2) |> vec
         U_pr_mob = -sum(U_pr, dims = 1) |> vec
-        rs[nxt:nxt+min(mem_pts, n_pts - nxt)] -=
+        rs[nxt:nxt+min(mem_pts - 1, n_pts - nxt)] -=
             G_list[1:min(mem_pts, n_pts - curr)] .* Ref(U_pr_chain .* (mem != 0))
         Rs[nxt] = -δ^2 / M .* U_pr_mob + 2 .* Rs[curr] - Rs[curr-1]
     end
