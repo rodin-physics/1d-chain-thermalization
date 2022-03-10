@@ -3,8 +3,8 @@ include("../src/main.jl")
 K = 1
 k = 20
 m = 1
-l_max = 1000
-times = [1, 25, 50, 100, 200]
+l_max = 500
+times = [1, 10, 25, 50, 100]
 
 Gs0 = [G(t, 0:l_max, 0, k, m) for t in times]
 Gs = [G(t, 0:l_max, K, k, m) for t in times]
@@ -18,7 +18,7 @@ ax1 = Axis(fig[1, 1], ylabel = L"\Delta r")
 ax2 = Axis(fig[2, 1], ylabel = L"\Delta r")
 ax3 = Axis(fig[3, 1], ylabel = L"\Delta r")
 ax4 = Axis(fig[4, 1], ylabel = L"\Delta r")
-ax5 = Axis(fig[5, 1], xlabel = L"j", ylabel = L"\Delta r")
+ax5 = Axis(fig[5, 1], xlabel = L"n", ylabel = L"\Delta r")
 axes = [ax1, ax2, ax3, ax4, ax5]
 txts = ["(a)", "(b)", "(c)", "(d)", "(e)"]
 for ii = 1:length(times)
@@ -35,7 +35,8 @@ for ii = 1:length(times)
     if ii != length(times)
         hidexdecorations!(axes[ii], grid = false)
     end
-    text!(axes[ii], txts[ii], position = (950, 0.1), textsize = 18, font = "CMU Serif")
+    text!(axes[ii], txts[ii], position = (475, 0.1), textsize = 18, font = "CMU Serif")
 end
 
 fig
+save("Pulse_Propagation.pdf", fig)
