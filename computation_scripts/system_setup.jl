@@ -1,6 +1,6 @@
 using Distributed
 using Random
-proc_num = 10
+proc_num = 12
 addprocs(proc_num - nprocs())
 
 @everywhere include("../src/main.jl")
