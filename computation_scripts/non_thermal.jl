@@ -1,6 +1,6 @@
 using Distributed
 
-proc_num = 12
+proc_num = 9
 addprocs(proc_num - nprocs())
 
 @everywhere include("../src/main.jl")
