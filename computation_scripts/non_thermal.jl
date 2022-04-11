@@ -9,7 +9,7 @@ system = load_object("precomputed/systems/System_K1_k20_m1_d60_l500.jld2")
 
 d = 60
 
-τ = 20                              # Simulation time
+τ = 50                              # Simulation time
 Ωmin = √(system.K / system.m)       # Minimum phonon frequency
 tmin = 2 * π / Ωmin                 # Period of the slowest mode
 δ = system.δ                        # Time step
@@ -33,7 +33,7 @@ system = ChainSystem(k, K, m, δ, G_list)
 
 ## Width and Depth Dependence
 s = [1 / 2, 1 / 4, 1 / 8, 1 / 16]
-F = [-1 / 2, -1 / 4, -1 / 8, -1 / 16, -1/32, 1/32, 1 / 16, 1 / 8, 1 / 4, 1 / 2]
+F = [-1 / 2, -1 / 4, -1 / 8, -1 / 16, -1 / 32, 1 / 32, 1 / 16, 1 / 8, 1 / 4, 1 / 2]
 # F = [-1, -1 / 2, -1 / 4, 1 / 4, 1 / 2, 1]
 v0 = [[1 / 2]]
 M = [1]
@@ -61,8 +61,8 @@ x0 = [5.5]
 end
 
 ## Speed dependence
-s = [1 / 8, 1/4]
-F = [1/8, 1/4, 1/2, 1, 2]
+s = [1 / 8, 1 / 4]
+F = [1 / 8, 1 / 4, 1 / 2, 1, 2]
 v0 = [[1 / 2], [1], [2], [4], [5]]
 mems = [Inf]
 M = [1]
@@ -91,8 +91,8 @@ x0 = [5.5]
 end
 
 s = [1 / 8]
-F = [1/16, 1/8, 1/4, 1/2, 1, 2]
-v0 = [[4],[6]]
+F = [1 / 16, 1 / 8, 1 / 4, 1 / 2, 1, 2]
+v0 = [[4], [6]]
 mems = [Inf]
 M = [Inf]
 
@@ -146,4 +146,23 @@ x0 = [5.5]
             res,
         )
     end
+end
+
+
+M = 1.0
+s = 0.5
+F = -1
+v0 = [1/2]
+mem = Inf
+x0 = [5.0]
+if (
+    !isfile(
+        "data/Non_Thermal/Single_x0$(x0)_v0$(v0)_Mem$(mem)_s$(s)_F$(F)_M$(M)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
+    )
+)
+    res = motion_solver(system, F, s, M, x0, v0, tTraj, mem, τ)
+    save_object(
+        "data/Non_Thermal/Single_x0$(x0)_v0$(v0)_Mem$(mem)_s$(s)_F$(F)_M$(M)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
+        res,
+    )
 end

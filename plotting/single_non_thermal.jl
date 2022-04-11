@@ -1,5 +1,7 @@
 include("../src/main.jl")
 
+step_size = 10
+
 function mkFigure(ax, filename, lms)
     data = load_object(filename)
     t_slow = 2 * π / √(data.K / data.m)
@@ -7,12 +9,13 @@ function mkFigure(ax, filename, lms)
     for ii = 1:length(data.rs[1])
         lines!(
             ax,
-            data.ts ./ t_slow,
-            ii * ones(length(data.ts[1:step:end])),
+            data.ts[1:step_size:end]./ t_slow,
+            # [x[ii] for x in data.rs[1:step_size:end]],
+            ii * ones(length(data.ts[1:step_size:end])),
             colormap = :balance,
-            color = [x[ii] for x in data.rs] .- ii,
-            colorrange = (-5e-3, 5e-3),
-            linewidth = 3,
+            color = [x[ii] for x in data.rs[1:step_size:end]] .- ii,
+            colorrange = (-8e-2, 8e-2),
+            linewidth = 1,
         )
     end
     lines!(
@@ -35,8 +38,10 @@ fig = Figure(resolution = (600, 400), font = "CMU Serif", fontsize = 18)
 ax1 = Axis(fig[1, 1], xlabel = L"t/t_\mathrm{Slow}", ylabel = L"x")
 mkFigure(
     ax1,
-    "data/Non_Thermal/Single_x0[5.5]_v0[0.5]_MemInf_s0.25_F0.0625_M1_d60_ΩTnothing_τ20.jld2",
-    [(0, 15), (0, 30)],
+    "data/Non_Thermal/Single_x0[5.5]_v0[0.5]_MemInf_s0.5_F-0.5_M1_d60_ΩTnothing_τ20.jld2",
+    # "data/Non_Thermal/Single_x0[5.0]_v0[0.5]_MemInf_s0.5_F-1_M1.0_d60_ΩTnothing_τ50.jld2",
+    
+    [(0, 20), (0, 60)],
 )
 
 lines!(
@@ -49,7 +54,7 @@ lines!(
 )
 fig
 
-save("General_Example.png", fig)
+save("General_Example.pdf", fig)
 
 ## s dependence
 
