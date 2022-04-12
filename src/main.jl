@@ -29,6 +29,11 @@ struct ChainSystem
     Γ::Matrix{Float64}          # Response array
 end
 
+struct Impulse
+    n::Int                      # Index of the chain mass
+    p::Float64                  # Impulse magnitude
+end
+
 struct ThermalTrajectory
     ωmax::Float64               # Largest mode frequency
     δ::Float64                  # Time step
@@ -50,13 +55,13 @@ end
 
 ## Functions
 # Frequency as a function of momentum
-@inline function Ω(ωmax, x)
+@inline function ω(ωmax, x)
     return sqrt(1 + (ωmax^2 - 1) * sin(x)^2)
 end
 
 # Chain recoil function
 function Γ(τ, ls, ωmax)
-    int_fun(x) = cos.(2 * x * ls) * sin(2 * π * τ * Ω(ωmax, x)) / Ω(ωmax, x)
+    int_fun(x) = cos.(2 * x * ls) * sin(2 * π * τ * ω(ωmax, x)) / ω(ωmax, x)
     res = quadgk(int_fun, 0, π / 2)
     return (res[1] * 2 / π)
 end
@@ -138,7 +143,6 @@ function motion_solver(
     end
 
     ## Arrays
-
     σs = zeros(n_pts, length(σ0))           # Mobile mass position
     ρs = ρHs[1:n_pts]                       # Chain mass position
 
@@ -174,7 +178,7 @@ end
 
 
 
-
+G_list = [SymmetricToeplitz(x[1:nChain]) for x in G_list]
 
 
 
