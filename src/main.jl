@@ -31,6 +31,7 @@ end
 
 struct Impulse
     n::Int                      # Index of the chain mass
+    t::Int                      # Time step index
     p::Float64                  # Impulse magnitude
 end
 
@@ -67,7 +68,7 @@ function Γ(τ, ls, ωmax)
 end
 
 function mkChainSystem(ωmax, τ_max, ls, d)
-    δ = (1 / ωmax) / d                  # Time step in units of t_M
+    δ = (1 / ωmax) / d                  # Time step in units of t_slow
     n_pts = floor(τ_max / δ) |> Int     # Number of time steps given τ_max and δ
     Γ_mat = zeros(ls, n_pts)
     @showprogress Threads.@threads for ii = 1:n_pts
@@ -100,7 +101,7 @@ function motion_solver(
     system::ChainSystem,
     Φ0::T where {T<:Real},
     λ::T where {T<:Real},
-    a::T where {T<:Real},
+    α::T where {T<:Real},
     σ0::Vector{T} where {T<:Real},
     σ_dot0::Vector{T} where {T<:Real},
     μ::T where {T<:Real},
@@ -110,19 +111,9 @@ function motion_solver(
 )
     δ = system.δ        # Array of time steps
     Γ_mat = system.Γ    # Memory term
-    # Check that the thermal trajectory is for the correct system
-    if (ωmax != tTraj.ωmax || δ != tTraj.δ)
-        error("Thermal trajectory describes a different system. Check your input.")
-    else
-        ρHs = tTraj.ρHs
-    end
 
     n_pts = floor(τ / δ) |> Int         # Number of time steps
     τs = δ .* (1:n_pts) |> collect      # Times
-    if size(ρHs)[2] < n_pts
-        error("Thermal trajectory provided does not span the necessary time range.")
-    end
-
     τ0_pts = max(floor(τ0 / δ), 1)    # Memory time points.
     # Even if τ0 == 0, we have to keep a single time point to make sure arrays work.
     # For zero memory, the recoil contribution is dropped (see line 156)
@@ -143,12 +134,13 @@ function motion_solver(
     end
 
     ## Arrays
-    σs = zeros(n_pts, length(σ0))           # Mobile mass position
-    ρs = ρHs[1:n_pts]                       # Chain mass position
+    σs = zeros(length(σ0), n_pts)           # Mobile mass position
+    σs[:, 1] = σ0
+    σs[:, 2] = σ0 + δ .* σ_dot0
+    impulse = Vector{Impulse}([])
 
-    # Initial values
-    σs[1, :] = σ0
-    σs[2, :] = σ0
+
+
 
     curr = 1
     nxt = curr + 2
@@ -334,4 +326,19 @@ function motion_solver_NEW(
         Rs[nxt] = -δ^2 / M .* U_pr_mob + 2 .* Rs[curr] - Rs[curr-1]
     end
     return SystemSolution(k, K, m, ts, mem, tTraj.a, M, F, s, Rs, rs, tTraj.ΩT, tTraj.ħ)
+end
+
+
+function motion_solver()
+    ##
+
+    ##
+    σs = zeros(length(x0), n_pts) # Mobile mass position
+    σs[:, 1] = x0
+    σs[:, 2] = x0 + v0 * δ
+    ##
+
+    ##
+
+    ##
 end
