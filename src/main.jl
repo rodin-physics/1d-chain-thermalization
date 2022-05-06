@@ -10,7 +10,8 @@ using Statistics
 using StatsBase
 using ToeplitzMatrices
 ## Parameters
-ħ = 1 / 200                     # Planck's constant
+const ħ = 1 / 200                     # Planck's constant
+const ϵ = 1e-150                      # Threshold to determine dUdr truncation
 my_red = colorant"rgba(215, 67, 84, 0.75)"
 my_green = colorant"rgba(106, 178, 71, 0.75)"
 my_blue = colorant"rgba(100, 101, 218, 0.75)"
@@ -49,7 +50,26 @@ struct SystemSolution
     M::Float64                  # Mass of the mobile atoms
     F::Float64                  # Magnitude of the Gaussian potential
     s::Float64                  # Standard deviation of the potential
-    Rs::Vector{Vector{Float64}} # Positions of mobile atoms. 
+    Rs::Vector{Vector{Float64}} # Positions of mobile atoms.
+    # External vector runs over time, internal over masses
+    rs::Vector{Vector{Float64}} # Positions of the chain atom
+    # External vector runs over time, internal over masses
+    ΩT::Union{Nothing,Float64}  # Temperature
+    ħ::Float64                  # Planck's constant
+end
+
+struct SystemSolutionTest
+    k::Float64                  # Spring force constant
+    K::Float64                  # Confining force constant
+    m::Float64                  # Mass of the chain atoms
+    δ::Float64                  # Spacing between time steps
+    nPts::Int64                 # Number of time steps
+    mem::Float64                # Memory in the units of the slowest chain mode
+    a::Float64                  # Chain mass spacing
+    M::Float64                  # Mass of the mobile atoms
+    F::Float64                  # Magnitude of the Gaussian potential
+    s::Float64                  # Standard deviation of the potential
+    Rs::Vector{Vector{Float64}} # Positions of mobile atoms.
     # External vector runs over time, internal over masses
     rs::Vector{Vector{Float64}} # Positions of the chain atom
     # External vector runs over time, internal over masses
@@ -70,7 +90,7 @@ function G(t, ls, K, k, m)
     return (res[1] * 2 / π / m)
 end
 
-# Function for assembiling a ChainSystem
+# Function for assembling a ChainSystem
 function mkChainSystem(K, k, m, t_max, ls, d)
     Ωmax = sqrt(4 * k / m + K / m)      # Largest chain frequency
     δ = (2 * π / Ωmax) / d              # Time step
@@ -90,7 +110,7 @@ function ζq(Ωq, ΩT, ħ)
 end
 
 # Homogeneous displacement of the active chain atom at time step n given a set of Ωs
-# and the corresponding ζs and ϕs as a sum of normal coordinates. 
+# and the corresponding ζs and ϕs as a sum of normal coordinates.
 function ζH(n, δ, ζs, ϕs, Ωs)
     n_ζ = length(ζs)
     res = [ζs[x] * cos(δ * n * Ωs[x] + ϕs[x]) / √(n_ζ) for x = 1:n_ζ] |> sum
@@ -160,7 +180,8 @@ function motion_solver(
         return (-F * exp(-r^2 / (2 * s^2)) * r / s^2)
     end
     ## Arrays
-    Rs = [zeros(length(x0)) for _ = 1:n_pts]# Mobile mass position
+    # Rs = [zeros(length(x0)) for _ = 1:n_pts]# Mobile mass position
+    Rs = fill(zeros(length(x0)), n_pts)
     rs = rHs[1:n_pts]                       # Chain mass position
 
     Rs[1] = x0
@@ -175,14 +196,191 @@ function motion_solver(
         G_list[2:min(mem_pts, n_pts - curr)] .* Ref(U_pr_chain .* (mem != 0))
 
     @showprogress for ii = 3:n_pts
-        nxt = ii        # Next time step index
         curr = ii - 1   # Current time step index
         U_pr = [dU_dr(r - R) for r in rs[curr], R in Rs[curr]]
         U_pr_chain = sum(U_pr, dims = 2) |> vec
         U_pr_mob = -sum(U_pr, dims = 1) |> vec
-        rs[nxt:nxt+min(mem_pts - 1, n_pts - nxt)] -=
+        rs[ii:ii+min(mem_pts - 1, n_pts - ii)] -=
             G_list[1:min(mem_pts, n_pts - curr)] .* Ref(U_pr_chain .* (mem != 0))
-        Rs[nxt] = -δ^2 / M .* U_pr_mob + 2 .* Rs[curr] - Rs[curr-1]
+        Rs[ii] = -δ^2 / M .* U_pr_mob + 2 .* Rs[curr] - Rs[curr-1]
     end
     return SystemSolution(k, K, m, ts, mem, tTraj.a, M, F, s, Rs, rs, tTraj.ΩT, tTraj.ħ)
+end
+
+function dU_dr_func(r, F, s)
+    return (-F * exp(-r^2 / (2 * s^2)) * r / s^2)
+end
+
+
+function sparsify!(x, thr)
+    return x[abs.(x) .< thr] .= 0
+end
+
+function searchsortednearest(a, x; by=identity, lt=isless, rev=false, distance=(a,b)->abs(a-b))
+    i = searchsortedfirst(a, x; by, lt, rev)
+    if i == 1
+    elseif i > length(a)
+        i = length(a)
+    elseif a[i] == x
+    else
+        i = lt(distance(by(a[i]), by(x)), distance(by(a[i - 1]), by(x))) ? i : i - 1
+    end
+    return i
+end
+
+function num_tracked(a::Float64, dU_func::Function, thr::Float64)
+    dUs = map(dU_func, a .* range(1, 50, step = 1))
+    return searchsortedfirst(dUs, sign(dUs[1]) * thr; rev = (true * sign(dUs[1]) == 1))
+end
+
+function tracked_range(mob::Vector{Float64}, track_num::Int64, chain_max::Int64, a::Float64)
+    chain_pos = a .* 1:chain_max
+    mob_pos = map(x -> searchsortednearest(chain_pos, x), mob)
+    all_ranges = map(x -> range(max(1, x-track_num), min(x+track_num, chain_max), step = 1), mob_pos)
+    return all_ranges[1] == 1 ? unique!(sort!(vcat(all_ranges...))) : unique!(sort!(vcat([1], vcat(all_ranges...))))
+end
+
+
+function motion_solver_test(
+    system::ChainSystem,
+    dU_func::Function,
+    F::Real,
+    s::Real,
+    M::Real,
+    x0::Vector{T} where {T<:Real},
+    v0::Vector{T} where {T<:Real},
+    tTraj::ThermalTrajectory,
+    mem::Real,
+    τ::Real)
+
+    m = system.m        # Mass of the chain atoms
+    k = system.k        # Spring force constant
+    K = system.K        # Confining potential force constant
+    δ = system.δ        # Array of time steps
+    G_list = system.G   # Memory term
+
+    # Check that the thermal trajectory is for the correct system
+    if m != tTraj.m || k != tTraj.k || K != tTraj.K || δ != tTraj.δ
+        error("Thermal trajectory describes a different system. Check your input.")
+    else
+        rs = tTraj.rHs
+    end
+
+    nChain = length(rs[1])
+    Ωmin = √(K / m)                         # Minimum phonon frequency
+    tmin = 2 * π / Ωmin                     # Period of the slowest mode
+    n_pts = floor(τ * tmin / δ) |> Int      # Number of time steps
+    ts = δ .* range(1, n_pts, step = 1)     # Times
+    if length(rs) < n_pts
+        error("Thermal trajectory provided does not span the necessary time range.")
+    end
+
+    mem_pts = max(floor(mem * tmin / δ), 1)  # Memory time points.
+
+    # If the precomputed memory is shorter than the simulation time AND shorter
+    # than the desired memory, terminate the calculation.
+    if length(G_list) < n_pts && length(G_list) < mem_pts
+        error("Chosen memory and the simulation time exceed the precomputed range.")
+    else
+        # The number of memory pts can be limited by the total simulation time.
+        mem_pts = min(mem_pts, n_pts) |> Int
+        if mem_pts == n_pts
+            @. G_list = δ * G_list
+        else
+            G_list = δ .* G_list[1:mem_pts]
+        end
+    end
+
+    # Check number of atoms in G_list
+    if length(G_list[1]) < nChain
+        error("The recoil term does not contain the desired number of chain masses.")
+    elseif length(G_list[1]) == nChain
+        G_list = map(SymmetricToeplitz, G_list)
+    else
+        G_list = map(x -> SymmetricToeplitz(x[1:nChain]), G_list)
+    end
+
+    dU_dr(r) = dU_func(r, F, s)
+    # Determine number of chain atoms to track from dUdr function
+    track_num = num_tracked(tTraj.a, dU_dr, ϵ)
+
+    ## Mobile particle and chain mass arrays
+    Rs = fill(zeros(length(x0)), n_pts)
+    rs = rs[1:n_pts]
+
+    ## Function to carry out the vector substraction
+    function add_to_chain_vectors!(chain::Vector{Vector{Float64}}, Gs::Vector{SymmetricToeplitz{Float64}}, U_list::Vector{Float64}, ind::Integer; tracked = nothing)
+        if tracked == nothing
+            chain_ind = ind:(ind+min(mem_pts - 2, n_pts - ind))
+            g_ind = 2:min(mem_pts, n_pts - 1)
+            G_curr = Gs
+        else
+            chain_ind = ind:(ind+min(mem_pts - 1, n_pts - ind))
+            g_ind = 1:min(mem_pts, n_pts - (ind - 1))
+            G_curr = view.(Gs, :, Ref(tracked))
+        end
+
+        if length(chain_ind) != length(g_ind) && length(G_list) != length(g_ind)
+            error("Dimensions do not match")
+        end
+
+        for (ii, jj) in zip(chain_ind, g_ind)
+            chain[ii] = chain[ii] - (G_curr[jj] * U_list)
+        end
+
+        return nothing
+    end
+
+    ## Function to initialize positions of arrays
+    function initialize_all_positions!()
+
+        # Calculate positions without any truncation
+        U_list = [dU_dr(r - R) for r in rs[1], R in Rs[1]]
+        U_chain = sum(U_list, dims = 2) |> vec
+
+        add_to_chain_vectors!(rs, G_list, U_chain, 3)
+
+        # Initialize positions of mobile particles
+        Rs[1] = x0
+        Rs[2] = x0 + v0 * δ
+
+        return nothing
+    end
+
+    ## Function to update positions
+    function update_all_positions!(ind::Integer)
+        # Indices of tracked chain atoms
+        tracked_indices = tracked_range(Rs[ind-1], track_num, nChain, tTraj.a)
+
+        # dU terms for tracked chain atoms
+        U_list = [dU_dr(r - R) for r in getindex(rs[ind-1], tracked_indices), R in Rs[ind-1]]
+
+        # U_list = [dU_dr(r - R) for r in rs[ind-1], R in Rs[ind-1]]
+
+        # Modified dU terms
+        U_chain = sum(U_list, dims = 2) |> vec
+        U_mob = -sum(U_list, dims = 1) |> vec
+
+
+        add_to_chain_vectors!(rs, G_list, U_chain, ind; tracked = tracked_indices)
+        Rs[ind] = -δ^2 / M .* U_mob + 2 .* Rs[ind - 1] - Rs[ind - 2]
+
+        return nothing
+    end
+
+
+    ## Function containing the loop
+    function solve_positions()
+        initialize_all_positions!()
+
+        @showprogress for ii in 3:n_pts
+            if mem != 0
+                update_all_positions!(ii)
+            end
+        end
+    end
+
+    solve_positions()
+
+    return SystemSolutionTest(k, K, m, δ, n_pts, mem, tTraj.a, M, F, s, Rs, rs, tTraj.ΩT, tTraj.ħ)
 end
