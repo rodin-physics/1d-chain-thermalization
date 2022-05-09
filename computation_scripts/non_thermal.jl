@@ -8,11 +8,11 @@ end
 
 @everywhere include("../src/main.jl")
 
-system = load_object("precomputed/System_K1_k20_m1_d10_l500.jld2")
+system = load_object("precomputed/System_K1_k20_m1_d80_l500.jld2")
 
-d = 10
+d = 80
 
-τ = 2                              # Simulation time
+τ = 50                              # Simulation time
 Ωmin = √(system.K / system.m)       # Minimum phonon frequency
 tmin = 2 * π / Ωmin                 # Period of the slowest mode
 δ = system.δ                        # Time step

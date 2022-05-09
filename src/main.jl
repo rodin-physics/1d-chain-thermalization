@@ -207,15 +207,19 @@ function motion_solver(
     return SystemSolution(k, K, m, ts, mem, tTraj.a, M, F, s, Rs, rs, tTraj.ΩT, tTraj.ħ)
 end
 
+## Helper functions for truncated motion_solver function
+
+# General dU_dr function for chain masses
 function dU_dr_func(r, F, s)
     return (-F * exp(-r^2 / (2 * s^2)) * r / s^2)
 end
 
-
+# Function to sparsify a vector in place for values below a threshold
 function sparsify!(x, thr)
     return x[abs.(x) .< thr] .= 0
 end
 
+# Function to return the index of closest value to target for a sorted list
 function searchsortednearest(a, x; by=identity, lt=isless, rev=false, distance=(a,b)->abs(a-b))
     i = searchsortedfirst(a, x; by, lt, rev)
     if i == 1
@@ -228,19 +232,23 @@ function searchsortednearest(a, x; by=identity, lt=isless, rev=false, distance=(
     return i
 end
 
+# Function that calculates number of chain masses to track given a dU_dr func
 function num_tracked(a::Float64, dU_func::Function, thr::Float64)
     dUs = map(dU_func, a .* range(1, 50, step = 1))
     return searchsortedfirst(dUs, sign(dUs[1]) * thr; rev = (true * sign(dUs[1]) == 1))
 end
 
+# Function that returns the indices of chain masses to be tracked
 function tracked_range(mob::Vector{Float64}, track_num::Int64, chain_max::Int64, a::Float64)
     chain_pos = a .* 1:chain_max
     mob_pos = map(x -> searchsortednearest(chain_pos, x), mob)
     all_ranges = map(x -> range(max(1, x-track_num), min(x+track_num, chain_max), step = 1), mob_pos)
+
+    # return the set of all ranges and include the first index if not already included
     return all_ranges[1] == 1 ? unique!(sort!(vcat(all_ranges...))) : unique!(sort!(vcat([1], vcat(all_ranges...))))
 end
 
-
+# Calculates trajectories of chain masses and mobile particles
 function motion_solver_test(
     system::ChainSystem,
     dU_func::Function,
@@ -270,7 +278,7 @@ function motion_solver_test(
     Ωmin = √(K / m)                         # Minimum phonon frequency
     tmin = 2 * π / Ωmin                     # Period of the slowest mode
     n_pts = floor(τ * tmin / δ) |> Int      # Number of time steps
-    ts = δ .* range(1, n_pts, step = 1)     # Times
+
     if length(rs) < n_pts
         error("Thermal trajectory provided does not span the necessary time range.")
     end
@@ -301,15 +309,22 @@ function motion_solver_test(
     end
 
     dU_dr(r) = dU_func(r, F, s)
+
     # Determine number of chain atoms to track from dUdr function
     track_num = num_tracked(tTraj.a, dU_dr, ϵ)
 
-    ## Mobile particle and chain mass arrays
+    ## Initialize mobile particle and chain mass arrays
     Rs = fill(zeros(length(x0)), n_pts)
     rs = rs[1:n_pts]
 
-    ## Function to carry out the vector substraction
-    function add_to_chain_vectors!(chain::Vector{Vector{Float64}}, Gs::Vector{SymmetricToeplitz{Float64}}, U_list::Vector{Float64}, ind::Integer; tracked = nothing)
+    ## Function to carry out the vector substraction for chain mass vectors
+    function add_to_chain_vectors!(
+        chain::Vector{Vector{Float64}},
+        Gs::Vector{SymmetricToeplitz{Float64}},
+        U_list::Vector{Float64},
+        ind::Integer;
+        tracked = nothing)
+
         if tracked == nothing
             chain_ind = ind:(ind+min(mem_pts - 2, n_pts - ind))
             g_ind = 2:min(mem_pts, n_pts - 1)
@@ -324,6 +339,7 @@ function motion_solver_test(
             error("Dimensions do not match")
         end
 
+        # In place replacement of values in chain array
         for (ii, jj) in zip(chain_ind, g_ind)
             chain[ii] = chain[ii] - (G_curr[jj] * U_list)
         end
@@ -331,7 +347,7 @@ function motion_solver_test(
         return nothing
     end
 
-    ## Function to initialize positions of arrays
+    ## Function to initialize positions of mobile particles and chain masses
     function initialize_all_positions!()
 
         # Calculate positions without any truncation
@@ -347,7 +363,7 @@ function motion_solver_test(
         return nothing
     end
 
-    ## Function to update positions
+    ## Function to update positions of mobile particles and chain masses
     function update_all_positions!(ind::Integer)
         # Indices of tracked chain atoms
         tracked_indices = tracked_range(Rs[ind-1], track_num, nChain, tTraj.a)
@@ -380,6 +396,7 @@ function motion_solver_test(
         end
     end
 
+    # Solve for positions at each time step
     solve_positions()
 
     return SystemSolutionTest(k, K, m, δ, n_pts, mem, tTraj.a, M, F, s, Rs, rs, tTraj.ΩT, tTraj.ħ)

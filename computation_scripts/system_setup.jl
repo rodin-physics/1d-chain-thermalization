@@ -9,18 +9,18 @@ end
 @everywhere include("../src/main.jl")
 
 ## Prepare the ChainSystem's by calculating the recoil term
-d = 10                              # Number of time steps in the fastest chain mode
+d = 80                              # Number of time steps in the fastest chain mode
 k = 20                              # Spring force constant
 K = 1                               # Confining potential force constant
 m = 1                               # Mass of the chain atoms
 t_Slow = 2 * π / Ω(K, k, m, 0)      # Period of the slowest chain mode
-t_max = 2 * t_Slow               # Simulation time
+t_max = 50 * t_Slow               # Simulation time
 l_max = 500                        # Number of chain atoms tracked
 
-# if (!isfile("precomputed/System_K$(K)_k$(k)_m$(m)_d$(d)_l$(l_max).jld2"))
-#     res = mkChainSystem(K, k, m, t_max, 0:l_max, d)
-#     save_object("precomputed/System_K$(K)_k$(k)_m$(m)_d$(d)_l$(l_max).jld2", res)
-# end
+if (!isfile("precomputed/System_K$(K)_k$(k)_m$(m)_d$(d)_l$(l_max).jld2"))
+    res = mkChainSystem(K, k, m, t_max, 0:l_max, d)
+    save_object("precomputed/System_K$(K)_k$(k)_m$(m)_d$(d)_l$(l_max).jld2", res)
+end
 
 # ## Precompute the thermal trajectories
 # m = 1                           # Mass of the chain atoms
