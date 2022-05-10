@@ -3,10 +3,13 @@ using Distributed
 proc_num = 9
 addprocs(proc_num - nprocs())
 
-@everywhere include("../src/main.jl")
+include("../src/main.jl")
+# @everywhere include("../src/main.jl")
 
 system = load_object("precomputed/systems/System_K1_k20_m1_d60_l500.jld2")
+gg = system.G
 
+@time gg[50000][200]
 d = 60
 
 τ = 50                              # Simulation time

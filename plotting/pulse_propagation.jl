@@ -1,36 +1,45 @@
 include("../src/main.jl")
 
-K = 1
-k = 20
-m = 1
+## Confinement-free chain
+@inline function ω0(ωmax, x)
+    return sqrt(ωmax^2 * sin(x)^2)
+end
+
+function Γ0(τ, ls, ωmax)
+    int_fun(x) = cos.(2 * x * ls) * sin(2 * π * τ * ω0(ωmax, x)) / ω0(ωmax, x)
+    res = quadgk(int_fun, 0, π / 2)
+    return (res[1] * 2 / π)
+end
+
+ωmax = 10
 l_max = 500
-times = [1, 10, 25, 50, 100]
+times = [1, 5, 10, 15]
 
-Gs0 = [G(t, 0:l_max, 0, k, m) for t in times]
-Gs = [G(t, 0:l_max, K, k, m) for t in times]
+Γ0s = [Γ0(τ, 0:l_max, ωmax) for τ in times]
+Γs = [Γ(τ, 0:l_max, ωmax) for τ in times]
+speed0 = ωmax / 2 * 2 * π
+speed = (ωmax - 1) / 2 * 2 * π
 
-speed =  √((2 * k + 0 - √(0 * (4 * k + 0))) / m) / √(2)   # speed = √(k / m) / 2
-speed2 = √((2 * k + K - √(K * (4 * k + K))) / m) / √(2)
+fig = Figure(resolution = (600, 960), font = "CMU Serif", fontsize = 18)
 
-fig = Figure(resolution = (600, 1200), font = "CMU Serif", fontsize = 18)
-
-ax1 = Axis(fig[1, 1], ylabel = L"\Delta r")
-ax2 = Axis(fig[2, 1], ylabel = L"\Delta r")
-ax3 = Axis(fig[3, 1], ylabel = L"\Delta r")
-ax4 = Axis(fig[4, 1], ylabel = L"\Delta r")
-ax5 = Axis(fig[5, 1], xlabel = L"n", ylabel = L"\Delta r")
-axes = [ax1, ax2, ax3, ax4, ax5]
-txts = ["(a)", "(b)", "(c)", "(d)", "(e)"]
+ax1 = Axis(fig[1, 1], ylabel = L"\Gamma_n(1)")
+ax2 = Axis(fig[2, 1], ylabel = L"\Gamma_n(5)")
+ax3 = Axis(fig[3, 1], ylabel = L"\Gamma_n(10)")
+ax4 = Axis(fig[4, 1], xlabel = L"n", ylabel = L"\Gamma_n(20)")
+axes = [ax1, ax2, ax3, ax4]
+txts = ["(a)", "(b)", "(c)", "(d)"]
+fig
 for ii = 1:length(times)
     ln = vlines!(
         axes[ii],
-        times[ii] * [speed, speed2],
+        times[ii] * [speed0, speed],
         linewidth = 2,
         linestyle = :dash,
         color = [my_red, my_blue],
     )
-    sc = scatter!(axes[ii], 0:l_max, Gs0[ii], markersize = 5, color = my_red)
-    sc2 = scatter!(axes[ii], 0:l_max, Gs[ii], markersize = 5, color = my_blue)
+    sc = scatter!(axes[ii], 0:l_max, Γ0s[ii], markersize = 5, color = my_red)
+    sc2 = scatter!(axes[ii], 0:l_max, Γs[ii], markersize = 5, color = my_blue)
+    xlims!(axes[ii], (-0.05, 500))
     ylims!(axes[ii], (-0.05, 0.15))
     if ii != length(times)
         hidexdecorations!(axes[ii], grid = false)
