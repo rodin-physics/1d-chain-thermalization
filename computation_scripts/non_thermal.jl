@@ -37,7 +37,8 @@ if length(G_list) != n_pts
 elseif length(G_list[1]) != nChain
     resize!.(G_list, nChain)
 end
-#
+
+
 # system = ChainSystem(k, K, m, δ, G_list)
 #
 # ## Width and Depth Dependence

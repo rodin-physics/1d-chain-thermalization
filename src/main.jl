@@ -340,7 +340,7 @@ function motion_solver_test(
         end
 
         # In place replacement of values in chain array
-        for (ii, jj) in zip(chain_ind, g_ind)
+        Threads.@threads for (ii,jj) in collect(zip(chain_ind, g_ind))
             chain[ii] = chain[ii] - (G_curr[jj] * U_list)
         end
 
