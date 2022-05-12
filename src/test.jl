@@ -4,7 +4,7 @@ include("../src/main.jl")
 system = load_object("precomputed/systems/System_ωmax10_d60_l50.jld2")
 
 d = 60
-τ = 50                             # Simulation time
+τ = 10                             # Simulation time
 δ = system.δ                        # Time step
 a = 1                               # Distance between chain atoms
 n_pts = τ / δ |> floor |> Int
@@ -12,8 +12,12 @@ nChain = 50
 ρHs = zeros(nChain, n_pts)
 tTraj = ThermalTrajectory(system.ωmax, system.δ, ρHs, nothing)
 
-res = motion_solver(system, 1, 1, 1, [5.5], [0.25], 1, tTraj, Inf, τ)
+@time res = motion_solver_test(system, 1, 1, 1, [5.5], [0.25], 1, tTraj, Inf, τ)
+@time res = motion_solver(system, 1, 1, 1, [5.5], [0.25], 1, tTraj, Inf, τ)
 # res.σs
+
+# Plots.plot(1:50,res[:,2000])
+# using Plots
 # aa = ones(500000, 500);
 # bb = ones(500000, 500);
 # cc = ones(500000, 500);

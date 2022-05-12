@@ -3,9 +3,9 @@ include("../src/main.jl")
 
 ## Prepare the ChainSystem's by calculating the recoil term
 d = 60       # Number of time steps in the fastest chain mode
-τmax = 50    # Simulation time
+τmax = 100    # Simulation time
 ωmax = 10    # Maximum frequency
-lmax = 50    # Number of chain atoms tracked
+lmax = 500    # Number of chain atoms tracked
 
 if (!isfile("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax).jld2"))
     res = mkChainSystem(ωmax, τmax, lmax, d)
