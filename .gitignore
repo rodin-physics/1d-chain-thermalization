@@ -26,4 +26,5 @@ Manifest.toml
 anim
 *.zip
 *.pdf
+*.png
 .DS_Store
