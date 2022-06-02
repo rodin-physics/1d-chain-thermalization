@@ -1,15 +1,16 @@
 using CairoMakie
 using Colors
 using Distributions
-using Folds
+# using Folds
 using JLD2
 using LaTeXStrings
 using LinearAlgebra
 using ProgressMeter
 using QuadGK
+using SpecialFunctions
 using Statistics
 using StatsBase
-using ThreadsX
+# using ThreadsX
 using ToeplitzMatrices
 
 ## Parameters

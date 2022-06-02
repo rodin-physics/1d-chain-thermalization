@@ -10,35 +10,35 @@ using Distributed
 # Non-instantaneous interaction scaling? General formula?
 # "Same potential landscape" from different λ and Φ
 # 
-proc_num = 4
+proc_num = 6
 addprocs(proc_num - nprocs())
 
 # include("../src/main.jl")
 @everywhere include("../src/main.jl")
 
 # GENERAL EXAMPLE
-system = load_object("precomputed/systems/System_ωmax10_d60_l100.jld2")
+system = load_object("precomputed/systems/System_ωmax10_d60_l200.jld2")
 d = 60
 τ = 100                             # Simulation time
 δ = system.δ                        # Time step
 α = 10                              # Distance between chain atoms
-Φ0 = [1, -1]
-λ = 1
 μ = 1
 
 n_pts = τ / δ |> floor |> Int
 nChain = 100
 ρHs = zeros(nChain, n_pts)
 tTraj = ThermalTrajectory(system.ωmax, system.δ, ρHs, nothing)
-σ0 = [[55], [50]]
-σdot0 = [25]
+σdot0 = [20]
 mem = Inf
 
-params = zip(Φ0, σ0) |> collect
+σ0 = [55]
+Φ0 = [1 / 2, 1, 2]
+λ = [1 / 2, 1]
+params = [(f, l) for f in Φ0, l in λ] |> vec
 
 @showprogress pmap(params) do param
     Φ0 = param[1]
-    σ0 = param[2]
+    λ = param[2]
     if (
         !isfile(
             "data/non_thermal/Single_σ0$(σ0)_σdot0$(σdot0)_Mem$(mem)_λ$(λ)_Φ$(Φ0)_μ$(μ)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
@@ -51,165 +51,124 @@ params = zip(Φ0, σ0) |> collect
             res,
         )
     end
-
 end
 
+σ0 = [60]
+Φ0 = -[1 / 2, 1, 2]
+λ = [1 / 2, 1]
+params = [(f, l) for f in Φ0, l in λ] |> vec
+
+@showprogress pmap(params) do param
+    Φ0 = param[1]
+    λ = param[2]
+    if (
+        !isfile(
+            "data/non_thermal/Single_σ0$(σ0)_σdot0$(σdot0)_Mem$(mem)_λ$(λ)_Φ$(Φ0)_μ$(μ)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
+        )
+    )
+
+        res = motion_solver(system, Φ0, λ, α, σ0, σdot0, μ, tTraj, mem, τ)
+        save_object(
+            "data/non_thermal/Single_σ0$(σ0)_σdot0$(σdot0)_Mem$(mem)_λ$(λ)_Φ$(Φ0)_μ$(μ)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
+            res,
+        )
+    end
+end
+
+## Burst Energy Loss
+system = load_object("precomputed/systems/System_ωmax10_d3000_l10.jld2")
+
+d = 3000
+δ = system.δ
+α = 10
+Φ0 = 1/2
+σ0 = 45
+nChain = 10
+vPts = 100
+σ_dots = range(20, 350, length = vPts)
+Δs = zeros(vPts)
 
 
-# τ = 50                              # Simulation time
-# Ωmin = √(system.K / system.m)       # Minimum phonon frequency
-# tmin = 2 * π / Ωmin                 # Period of the slowest mode
+@showprogress for ii = 1:vPts
+    σ_dot = σ_dots[ii]
+    τ = 1.1 * (α / σ_dot)
+    n_pts = τ / δ |> floor |> Int
+    ρHs = zeros(nChain, n_pts)
+    tTraj = ThermalTrajectory(system.ωmax, system.δ, ρHs, nothing)
+
+    res = motion_solver(system, Φ0, 1/4, α, [σ0], [σ_dot], 1, tTraj, Inf, τ)
+    σs = res.σs |> vec
+    mid_pt_idx = findmin(abs.(σs .- (σ0 + α)))[2]
+    v_final = (σs[mid_pt_idx] - σs[mid_pt_idx-1]) / δ
+    Δs[ii] = μ / 2 / (2 * π)^2 * (σ_dot^2 - v_final^2)
+end
+
+λ = 1/4
+Φ = 1/2
+function en_loss(v)
+    z = (2 * π * λ / v)^2
+    return (
+        4 * π^3 * Φ^2 / v^2 *
+        z *
+        exp(-z * (Ω^2 + 1) / 2) *
+        (
+            besseli(0, z * (Ω^2 - 1) / 2) +
+            (Ω^2 - 1) / 2 * (besseli(0, z * (Ω^2 - 1) / 2) - besseli(1, z * (Ω^2 - 1) / 2))
+        )
+    )
+end
+analytic = en_loss.(σ_dots)
+
+fig = Figure(resolution = (1200, 800), font = "CMU Serif", fontsize = 36)
+ax1 = Axis(fig[1, 1], xlabel = L"\tau", ylabel = L"\sigma")
+
+# lines!(ax1,log.(σ_dots), log.(Δs))
+# # lines!(ax1,log.(σ_dots), log.(Δs_2))
+# lines!(ax1, log.(σ_dots), log.(analytic))
+# Δs- Δs_2
+
+
+lines!(ax1,(σ_dots), (Δs))
+# lines!(ax1,(σ_dots), (Δs_2))
+lines!(ax1, (σ_dots), (analytic))
+fig
+
+
+μs = [1 / 5, 1, 5]
+λs = [1 / 8, 1 / 4, 1 / 2, 1, 2]
+
+σ_dot = 25
+
+
+res = motion_solver(system, Φ0, λ, α, σ0, σdot0, μ, tTraj, Inf, τ)
+σs = res.σs |> vec
+v = (σs[2:end] - σs[1:end-1]) / (res.τs[2] - res.τs[1])
+scatter((res.τs)[2:end], v)
+
+
+mid_pt_idx = findmin(abs.(σs .- (σ0 + α)))[2]
+v_final = (σs[mid_pt_idx] - σs[mid_pt_idx-1]) / δ
+Δ_en = μ / 2 / (2 * π)^2 * (σ_dot^2 - v_final^2)
+μ
+σs[mid_pt_idx]
+
+
+# system = load_object("precomputed/systems/System_ωmax10_d3000_l10.jld2")
+
+# d = 3000
+# τ = .4                            # Simulation time
 # δ = system.δ                        # Time step
-# n_pts = floor(τ * tmin / δ) |> Int  # Number of time steps
-# nChain = 50                         # Number of chain atoms tracked
-# a = 1                               # Distance between chain atoms
-
-# rHs = [a .* collect(1:nChain) for n = 1:n_pts]
-# tTraj = ThermalTrajectory(system.k, system.K, system.m, a, system.δ, rHs, nothing, ħ)
-
-# # Modify the system variable to reduce its size for parallelization
-# m = system.m            # Mass of the chain atoms
-# k = system.k            # Spring force constant
-# K = system.K            # Confining potential force constant
-# δ = system.δ            # Array of time steps
-# G_list = system.G       # Memory term
-# G_list = G_list[1:n_pts]
-# G_list = [x[1:nChain] for x in G_list]
-
-# system = ChainSystem(k, K, m, δ, G_list)
-
-# ## Width and Depth Dependence
-# s = [1 / 2, 1 / 4, 1 / 8, 1 / 16]
-# F = [-1 / 2, -1 / 4, -1 / 8, -1 / 16, -1 / 32, 1 / 32, 1 / 16, 1 / 8, 1 / 4, 1 / 2]
-# # F = [-1, -1 / 2, -1 / 4, 1 / 4, 1 / 2, 1]
-# v0 = [[1 / 2]]
-# M = [1]
-# mems = [Inf]
-
-# parameters = [(w, x, y, z, mem) for w in M, x in s, y in F, z in v0, mem in mems] |> vec
-# x0 = [5.5]
-# @showprogress pmap(parameters) do param
-#     M = param[1]
-#     s = param[2]
-#     F = param[3]
-#     v0 = param[4]
-#     mem = param[5]
-#     if (
-#         !isfile(
-#             "data/Non_Thermal/Single_x0$(x0)_v0$(v0)_Mem$(mem)_s$(s)_F$(F)_M$(M)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
-#         )
-#     )
-#         res = motion_solver(system, F, s, M, x0, v0, tTraj, mem, τ)
-#         save_object(
-#             "data/Non_Thermal/Single_x0$(x0)_v0$(v0)_Mem$(mem)_s$(s)_F$(F)_M$(M)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
-#             res,
-#         )
-#     end
-# end
-
-# ## Speed dependence
-# s = [1 / 8, 1 / 4]
-# F = [1 / 8, 1 / 4, 1 / 2, 1, 2]
-# v0 = [[1 / 2], [1], [2], [4], [5]]
-# mems = [Inf]
-# M = [1]
-
-
-# parameters = [(w, x, y, z, mem) for w in M, x in s, y in F, z in v0, mem in mems] |> vec
-# x0 = [5.5]
-
-# @showprogress pmap(parameters) do param
-#     M = param[1]
-#     s = param[2]
-#     F = param[3]
-#     v0 = param[4]
-#     mem = param[5]
-#     if (
-#         !isfile(
-#             "data/Non_Thermal/Single_x0$(x0)_v0$(v0)_Mem$(mem)_s$(s)_F$(F)_M$(M)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
-#         )
-#     )
-#         res = motion_solver(system, F, s, M, x0, v0, tTraj, mem, τ)
-#         save_object(
-#             "data/Non_Thermal/Single_x0$(x0)_v0$(v0)_Mem$(mem)_s$(s)_F$(F)_M$(M)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
-#             res,
-#         )
-#     end
-# end
-
-# s = [1 / 8]
-# F = [1 / 16, 1 / 8, 1 / 4, 1 / 2, 1, 2]
-# v0 = [[4], [6]]
-# mems = [Inf]
-# M = [Inf]
-
-
-# parameters = [(w, x, y, z, mem) for w in M, x in s, y in F, z in v0, mem in mems] |> vec
-# x0 = [5.5]
-
-# @showprogress pmap(parameters) do param
-#     M = param[1]
-#     s = param[2]
-#     F = param[3]
-#     v0 = param[4]
-#     mem = param[5]
-#     if (
-#         !isfile(
-#             "data/Non_Thermal/Single_x0$(x0)_v0$(v0)_Mem$(mem)_s$(s)_F$(F)_M$(M)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
-#         )
-#     )
-#         res = motion_solver(system, F, s, M, x0, v0, tTraj, mem, τ)
-#         save_object(
-#             "data/Non_Thermal/Single_x0$(x0)_v0$(v0)_Mem$(mem)_s$(s)_F$(F)_M$(M)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
-#             res,
-#         )
-#     end
-# end
-
-# ## Memory Dependence
-# s = [1 / 4]
-# F = [-1 / 4, 1 / 4]
-# v0 = [[1 / 2]]
-# M = [1 / 2]
-# mems = [0, 0.05, 0.5, 1, 10, 50, Inf]
-
-# parameters = [(w, x, y, z, mem) for w in M, x in s, y in F, z in v0, mem in mems] |> vec
-# x0 = [5.5]
-
-# @showprogress pmap(parameters) do param
-#     M = param[1]
-#     s = param[2]
-#     F = param[3]
-#     v0 = param[4]
-#     mem = param[5]
-#     if (
-#         !isfile(
-#             "data/Non_Thermal/Single_x0$(x0)_v0$(v0)_Mem$(mem)_s$(s)_F$(F)_M$(M)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
-#         )
-#     )
-#         res = motion_solver(system, F, s, M, x0, v0, tTraj, mem, τ)
-#         save_object(
-#             "data/Non_Thermal/Single_x0$(x0)_v0$(v0)_Mem$(mem)_s$(s)_F$(F)_M$(M)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
-#             res,
-#         )
-#     end
-# end
-
-
-# M = 1.0
-# s = 0.5
-# F = -1
-# v0 = [1/2]
-# mem = Inf
-# x0 = [5.0]
-# if (
-#     !isfile(
-#         "data/Non_Thermal/Single_x0$(x0)_v0$(v0)_Mem$(mem)_s$(s)_F$(F)_M$(M)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
-#     )
-# )
-#     res = motion_solver(system, F, s, M, x0, v0, tTraj, mem, τ)
-#     save_object(
-#         "data/Non_Thermal/Single_x0$(x0)_v0$(v0)_Mem$(mem)_s$(s)_F$(F)_M$(M)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
-#         res,
-#     )
-# end
+# a = 10                               # Distance between chain atoms
+# n_pts = τ / δ |> floor |> Int
+# nChain = 10
+# ρHs = zeros(nChain, n_pts)
+# tTraj = ThermalTrajectory(system.ωmax, system.δ, ρHs, nothing)
+# λ = 1;
+# Φ = 1;
+# μ = 25/1;
+# @time res = motion_solver(system, Φ, λ, a, [25], [25], μ, tTraj, Inf, τ)
+# s = (res.σs |> vec)
+# v = (s[2:end] - s[1:end-1]) / (res.τs[2] - res.τs[1])
+# scatter((res.τs)[2:end], v)
+# kin_en = μ * v.^ 2 / 2 / (2 * π)^2
+# kin_en[end] - kin_en[1]
