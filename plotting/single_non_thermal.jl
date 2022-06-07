@@ -39,7 +39,7 @@ Colorbar(fig[1, 2], hm; label = L"\Delta\rho", width = 15, ticksize = 15, tickal
 # ATTRACTIVE
 
 data = load_object(
-    "data/non_thermal/Single_σ0[60]_σdot0[20]_MemInf_λ1.0_Φ-1.0_μ1_d60_ΩTnothing_τ100.jld2",
+    "data/non_thermal/Single_σ0[55]_σdot0[20]_MemInf_λ1.0_Φ-1.0_μ1_d60_ΩTnothing_τ100.jld2",
 )
 δ = data.τs[2] - data.τs[1]
 rr = reduce(hcat, [data.ρs[ii, :] .- ii * data.α for ii = 1:size(data.ρs)[1]])
@@ -67,100 +67,6 @@ lines!(
 Colorbar(fig[2, 2], hm; label = L"\Delta\rho", width = 15, ticksize = 15, tickalign = 1)
 fig
 save("General_Example.pdf", fig)
-
-
-## BURST ENERGY LOSS
-
-system = load_object("precomputed/systems/System_ωmax10_d6000_l10.jld2")
-
-d = 6000
-α = 10
-μ = 1
-σ0 = 45
-λs = [1 / 8]
-# λs = [1 / 8, 1 / 4, 1 / 2, 1, 2]
-vPts = 100
-σ_dots = range(20, 30, length = vPts)
-
-function Δ_analytic(v, Φ, λ, Ω)
-    z = (2 * π * λ / v)^2
-    return (
-        4 * π^3 * Φ^2 / v^2 *
-        z *
-        exp(-z * (Ω^2 + 1) / 2) *
-        (
-            besseli(0, z * (Ω^2 - 1) / 2) +
-            (Ω^2 - 1) / 2 * (besseli(0, z * (Ω^2 - 1) / 2) - besseli(1, z * (Ω^2 - 1) / 2))
-        )
-    )
-end
-
-function Δ_numeric(σ_dot, σ0, Φ0, λ, system)
-    δ = system.δ
-    τ = 1.1 * (α / σ_dot)
-    n_pts = τ / δ |> floor |> Int
-    ρHs = zeros(nChain, n_pts)
-    tTraj = ThermalTrajectory(system.ωmax, system.δ, ρHs, nothing)
-
-    res = motion_solver(system, Φ0, λ, α, [σ0], [σ_dot], μ, tTraj, Inf, τ)
-    σs = res.σs |> vec
-    mid_pt_idx = findmin(abs.(σs .- (σ0 + α)))[2]
-    v_final = (σs[mid_pt_idx] - σs[mid_pt_idx-1]) / δ
-    return (μ / 2 / (2 * π)^2 * (σ_dot^2 - v_final^2))
-end
-
-colors = [my_vermillion, my_orange, my_green, my_sky, my_blue]
-fig = Figure(resolution = (1200, 800), font = "CMU Serif", fontsize = 36)
-ax1 = Axis(
-    fig[1, 1],
-    xlabel = L"\dot{\sigma}_0",
-    ylabel = L"\Delta",
-    yscale = log10,
-    # xscale = log10,
-    # yminorticksvisible = true,
-    # yminorgridvisible = true,
-    # yminorticks = IntervalsBetween(10),
-    # xminorticksvisible = true,
-    # xminorgridvisible = true,
-    # xminorticks = IntervalsBetween(10),
-)
-
-for ii = 1:length(λs)
-
-    λ = λs[ii]
-    res_att = [Δ_numeric(x, σ0, -.02, λ, system) for x in σ_dots]
-    res_rep = [Δ_numeric(x, σ0, .02, λ, system) for x in σ_dots]
-    analytic = Δ_analytic.(σ_dots, .02, λ, 10)
-
-    scatter!(ax1, (σ_dots), (res_att), color = colors[ii], marker = :hline, markersize = 20)
-    scatter!(ax1, (σ_dots), (res_rep), color = colors[ii], marker = :cross, markersize = 20)
-    lines!(
-        ax1,
-        (σ_dots),
-        (analytic),
-        color = colors[ii],
-        linewidth = 4,
-        label = L"\lambda = %$λ",
-    )
-end
-axislegend(ax1, position = :rt)
-fig
-save("Dissipation.pdf", fig)
-
-
-
-system = load_object("precomputed/systems/System_ωmax10_d60_l200.jld2")
-
-Δ_numeric(.5, 25, -.0005, 1, system)
-Δ_analytic.(10, .02, 1, 10)
-
-
-μ / 2 / (2 * π)^2 * (.5^2)
-vPts = 1000
-σ_dots = range(0.5, 10, length = vPts)
-analytic = Δ_analytic.(σ_dots, .1, .3, 10)
-lines(σ_dots, analytic)
-a
 
 # δ = system.δ
 # τ = 1.1 * (α / σ_dot)
@@ -622,4 +528,3 @@ fig
 # # #     rowgap!(fig.layout, 5)
 # # #     save("General_Example.pdf", fig)
 # # # end
-

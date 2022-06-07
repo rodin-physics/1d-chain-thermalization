@@ -11,7 +11,14 @@ speed = (ωmax - 1) / 2 * 2 * π
 fig = Figure(resolution = (600, 400), font = "CMU Serif", fontsize = 18)
 ax1 = Axis(fig[1, 1], ylabel = L"\Gamma_n(\tau)", xlabel = L"n")
 for ii = 1:length(times)
-    sc = scatter!(ax1, 0:l_max, Γs[ii], markersize = 5, color = colors[ii], label = L"\tau = %$(times[ii])")
+    sc = scatter!(
+        ax1,
+        0:l_max,
+        Γs[ii],
+        markersize = 5,
+        color = colors[ii],
+        label = L"\tau = %$(times[ii])",
+    )
 
     ln = vlines!(
         ax1,

@@ -8,89 +8,106 @@ d = 60
 δ = system.δ                        # Time step
 a = 20                               # Distance between chain atoms
 n_pts = τ / δ |> floor |> Int
-nChain = 100
+nChain = 50
 ρHs = zeros(nChain, n_pts)
 tTraj = ThermalTrajectory(system.ωmax, system.δ, ρHs, nothing)
 λ = 1;
 Φ = 1;
-@time res = motion_solver(system, 1, 1, a, [25], [20], 1, tTraj, 2, τ)
-@time res_N = motion_solver(system, 1.01, 3, a, [25], [20], 1, tTraj, 2, τ)
-@time res_NN = motion_solver(system, 1.965, 6, a, [25], [20], 1, tTraj, 2, τ)
-@time res_NNN = motion_solver(system, 12, 9, a, [25], [20], 1, tTraj, 2, τ)
-@time res_NNNN = motion_solver(system, 203, 12, a, [25], [20], 1, tTraj, 2, τ)
+@time res1 = motion_solver(system, 1, 1, a, [25], [5], 1, tTraj, Inf, τ)
+# @time res1 = motion_solver(system, 1, 1, a, [25], [5], 1, tTraj, Inf, τ)
+# @time res = motion_solver_TEST(system, 1, 1, a, [25], [5], 1, tTraj, Inf, τ)
+@time res = motion_solver_TEST(system, 1, 1, a, [25], [5], 1, tTraj, Inf, τ)
+# println(res1.σs ≈res.σs)
+# res.σs - res1.σs
+# a
+# @time res_N = motion_solver(system, 1.01, 3, a, [25], [20], 1, tTraj, 2, τ)
+# @time res_NN = motion_solver(system, 1.965, 6, a, [25], [20], 1, tTraj, 2, τ)
+# @time res_NNN = motion_solver(system, 12, 9, a, [25], [20], 1, tTraj, 2, τ)
+# @time res_NNNN = motion_solver(system, 203, 12, a, [25], [20], 1, tTraj, 2, τ)
 
 
 
-system = load_object("precomputed/systems/System_ωmax10_d3000_l10.jld2")
+# system = load_object("precomputed/systems/System_ωmax10_d3000_l10.jld2")
 
-d = 3000
-τ = 0.45                            # Simulation time
-δ = system.δ                        # Time step
-a = 10                               # Distance between chain atoms
-n_pts = τ / δ |> floor |> Int
-nChain = 10
-ρHs = zeros(nChain, n_pts)
-tTraj = ThermalTrajectory(system.ωmax, system.δ, ρHs, nothing)
-λ = 1;
-Φ = -1;
-μ = 1;
-@time res = motion_solver(system, Φ, λ, a, [30], [25], μ, tTraj, Inf, τ)
-s = (res.σs |> vec)
-v = (s[2:end] - s[1:end-1]) / (res.τs[2] - res.τs[1])
-scatter((res.τs)[2:end], v)
-
-
+# d = 3000
+# τ = 0.45                            # Simulation time
+# δ = system.δ                        # Time step
+# a = 10                               # Distance between chain atoms
+# n_pts = τ / δ |> floor |> Int
+# nChain = 10
+# ρHs = zeros(nChain, n_pts)
+# tTraj = ThermalTrajectory(system.ωmax, system.δ, ρHs, nothing)
+# λ = 1;
+# Φ = -1;
+# μ = 1;
+# @time res = motion_solver(system, Φ, λ, a, [30], [25], μ, tTraj, Inf, τ)
+# s = (res.σs |> vec)
+# v = (s[2:end] - s[1:end-1]) / (res.τs[2] - res.τs[1])
+# scatter((res.τs)[2:end], v)
 
 
 
 
-kin_en = μ * v.^ 2 / 2 / (2 * π)^2
-kin_en[end] - kin_en[1]
-
-Δ_kin_en = kin_en[2:end] - kin_en[1:end-1]
 
 
-@time res_S = motion_solver(system, 1, 1, a, [res.σs[23450]], [(res.σs[23450]-res.σs[23449]) / (res.τs[2]-res.τs[1])], 1, tTraj, Inf, τ-res.τs[23450])
-Plots.plot((res.τs), (res.σs |> vec))
-Plots.plot!((res_N.τs), (res_N.σs |> vec))
-Plots.plot!((res_NN.τs), (res_NN.σs |> vec))
-Plots.plot!((res_NNN.τs), (res_NNN.σs |> vec))
-Plots.plot!((res_NNNN.τs), (res_NNNN.σs |> vec))
-Plots.plot!((res_S.τs).+res.τs[23450], (res_S.σs |> vec))
+# kin_en = μ * v .^ 2 / 2 / (2 * π)^2
+# kin_en[end] - kin_en[1]
 
-(res.σs[23450]-res.σs[23449]) / (res.τs[2]-res.τs[1])
-res.τs[23450]
-Plots.plot((res_S.τs), (res_S.σs |> vec))
+# Δ_kin_en = kin_en[2:end] - kin_en[1:end-1]
 
 
-Plots.plot!((res.τs), (res.σs |> vec))
-Plots.plot((res.τs), (res.σs |> vec) -  (res_S.σs |> vec))
-@time Γ(4, 0:10, 10);
-# @time res = motion_solver(system, Φ/5, λ/32, a, [25], [4], 1, tTraj, Inf, τ)
-# @time res_test = motion_solver_test(system, Φ, λ, a, [25], [10], 1, tTraj, Inf, τ)
-# println(res == res_test)
-# motion_solver(system, Φ, λ, a, [25], [10], 1, tTraj, Inf, τ) ==
-# motion_solver(system, Φ, λ, a, [25], [10], 1, tTraj, Inf, τ)
-# res.ρs ≈ res_test.ρs
-# res
-# @time res = motion_solver(system, 10, 1, a, [25], [5], 1, tTraj, 50, τ)
-1/2*(10 / 2 / pi)^2
-1/2*(20 / 2 / pi)^2
-1/2*(7 / 2 / pi)^2
-# using Plots
-# res.σs[1]
-# res.σs[3]
+# @time res_S = motion_solver(
+#     system,
+#     1,
+#     1,
+#     a,
+#     [res.σs[23450]],
+#     [(res.σs[23450] - res.σs[23449]) / (res.τs[2] - res.τs[1])],
+#     1,
+#     tTraj,
+#     Inf,
+#     τ - res.τs[23450],
+# )
+# Plots.plot((res.τs), (res.σs |> vec))
+# Plots.plot!((res_N.τs), (res_N.σs |> vec))
+# Plots.plot!((res_NN.τs), (res_NN.σs |> vec))
+# Plots.plot!((res_NNN.τs), (res_NNN.σs |> vec))
+# Plots.plot!((res_NNNN.τs), (res_NNNN.σs |> vec))
+# Plots.plot!((res_S.τs) .+ res.τs[23450], (res_S.σs |> vec))
+
+# (res.σs[23450] - res.σs[23449]) / (res.τs[2] - res.τs[1])
+# res.τs[23450]
+# Plots.plot((res_S.τs), (res_S.σs |> vec))
+
+
+# Plots.plot!((res.τs), (res.σs |> vec))
+# Plots.plot((res.τs), (res.σs |> vec) - (res_S.σs |> vec))
+# @time Γ(4, 0:10, 10);
+# # @time res = motion_solver(system, Φ/5, λ/32, a, [25], [4], 1, tTraj, Inf, τ)
+# # @time res_test = motion_solver_test(system, Φ, λ, a, [25], [10], 1, tTraj, Inf, τ)
+# # println(res == res_test)
+# # motion_solver(system, Φ, λ, a, [25], [10], 1, tTraj, Inf, τ) ==
+# # motion_solver(system, Φ, λ, a, [25], [10], 1, tTraj, Inf, τ)
+# # res.ρs ≈ res_test.ρs
+# # res
+# # @time res = motion_solver(system, 10, 1, a, [25], [5], 1, tTraj, 50, τ)
+# 1 / 2 * (10 / 2 / pi)^2
+# 1 / 2 * (20 / 2 / pi)^2
+# 1 / 2 * (7 / 2 / pi)^2
 # # using Plots
-# # motion_solver_test()
-# maximum(res.σs |> vec)
-# res.σs[2]-res.σs[1]
-40/600
-using Plots
+# # res.σs[1]
+# # res.σs[3]
+# # # using Plots
+# # # motion_solver_test()
+# # maximum(res.σs |> vec)
+# # res.σs[2]-res.σs[1]
+# 40 / 600
+# using Plots
 
-Plots.plot((res.τs), (res.ρs[10,:] |> vec))
-length(res.τs)
-a
-# Plots.plot((abs.(res.τs[1:end-1])), (abs.(res.σs[2:end] - res.σs[1:end-1] |> vec)))
+# Plots.plot((res.τs), (res.ρs[10, :] |> vec))
+# length(res.τs)
+# a
+# # Plots.plot((abs.(res.τs[1:end-1])), (abs.(res.σs[2:end] - res.σs[1:end-1] |> vec)))
 
 
 
@@ -149,20 +166,20 @@ a
 # R = Γ.(range(0,1/2,length = 1000), [0], 10)
 # lines(range(0,1/2,length = 1000), R)
 
-fig = Figure(resolution = (1200, 800), font = "CMU Serif", fontsize = 36)
-ax1 = Axis(fig[1, 1], xlabel = L"\tau", ylabel = L"\sigma")
-data = load_object(
-    "data/non_thermal/Single_σ0[55]_σdot0[20]_MemInf_λ1.0_Φ1.0_μ1_d60_ΩTnothing_τ100.jld2",
-)
-δ = data.τs[2] - data.τs[1]
-# lines!(ax1, data.τs .+0, ([x[1] for x in data.σs] |> vec) .+0, color = my_red, linewidth = 5)
-# lines!(ax1,data.τs[2: end] .+22.0, (data.σs[2:end] .- data.σs[1:end-1]) ./ δ, linewidth = 1, color = my_vermillion)
-v = (data.σs[2:end] .- data.σs[1:end-1]) ./ δ
-idx = findall(i->v[i]>v[i-1]&& v[i]>v[i+1], 2:length(v)-2)
-ch = v[idx[2:end]] -v[idx[1:end-1]]
-lines!(ax1, data.τs[2: end] , (v[1] .- v).^(1/2))
-scatter(1:(length(idx)-0), (v[1] .- v[idx]).^(1/1))
-scatter(((v[idx[2:end]])[1:end-23]),(-ch[1:end-23]))
+# fig = Figure(resolution = (1200, 800), font = "CMU Serif", fontsize = 36)
+# ax1 = Axis(fig[1, 1], xlabel = L"\tau", ylabel = L"\sigma")
+# data = load_object(
+#     "data/non_thermal/Single_σ0[55]_σdot0[20]_MemInf_λ1.0_Φ1.0_μ1_d60_ΩTnothing_τ100.jld2",
+# )
+# δ = data.τs[2] - data.τs[1]
+# # lines!(ax1, data.τs .+0, ([x[1] for x in data.σs] |> vec) .+0, color = my_red, linewidth = 5)
+# # lines!(ax1,data.τs[2: end] .+22.0, (data.σs[2:end] .- data.σs[1:end-1]) ./ δ, linewidth = 1, color = my_vermillion)
+# v = (data.σs[2:end] .- data.σs[1:end-1]) ./ δ
+# idx = findall(i -> v[i] > v[i-1] && v[i] > v[i+1], 2:length(v)-2)
+# ch = v[idx[2:end]] - v[idx[1:end-1]]
+# lines!(ax1, data.τs[2:end], (v[1] .- v) .^ (1 / 2))
+# scatter(1:(length(idx)-0), (v[1] .- v[idx]) .^ (1 / 1))
+# scatter(((v[idx[2:end]])[1:end-23]), (-ch[1:end-23]))
 # # length(v)
 # # v[10000]
 # aa = (v[2:end] .- v[1:end - 1]) ./ δ;
@@ -179,19 +196,19 @@ scatter(((v[idx[2:end]])[1:end-23]),(-ch[1:end-23]))
 # # scatter!(ax1,data.τs[3: end].-10 ,aa, color = my_green)
 # # lines!(ax1, data.τs, [x[1] for x in data.σs] |> vec, color = my_black, linewidth = 5)
 
-# lines!(ax1, data.τs[2: end], (data.σs[2:end] .- data.σs[1:end-1]) ./ δ, linewidth = 1, color = my_blue)
-fig
+# # lines!(ax1, data.τs[2: end], (data.σs[2:end] .- data.σs[1:end-1]) ./ δ, linewidth = 1, color = my_blue)
+# fig
 
-gg = system.Γ[1,:]
+# gg = system.Γ[1, :]
 
-lines(data.τs[1:400], gg[1:400])
-lines(data.τs[1:4000], g)
+# lines(data.τs[1:400], gg[1:400])
+# lines(data.τs[1:4000], g)
 
 
-function GG(τ, ωmax)
-    int_fun(x) =  cos(2 * π * τ * ω(ωmax, x)) / ω(ωmax, x)^2
-    res = quadgk(int_fun, 0, π / 2)
-    return (res[1] * 2 / π)
-end
+# function GG(τ, ωmax)
+#     int_fun(x) = cos(2 * π * τ * ω(ωmax, x)) / ω(ωmax, x)^2
+#     res = quadgk(int_fun, 0, π / 2)
+#     return (res[1] * 2 / π)
+# end
 
-g = GG.(data.τs[1:4000], 5)
+# g = GG.(data.τs[1:4000], 5)
