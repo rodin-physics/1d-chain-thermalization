@@ -212,3 +212,6 @@ tTraj = ThermalTrajectory(system.ωmax, system.δ, ρHs, nothing)
 # end
 
 # g = GG.(data.τs[1:4000], 5)
+ts = (-1/10):(1/600):(1/10)
+p = [(t * 25) .* exp(- (t * 25)^2/ (2 * 0.5^2)) for t in ts]
+scatter(ts .* 25, p)

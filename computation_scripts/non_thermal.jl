@@ -3,24 +3,25 @@ include("../src/main.jl")
 # # GENERAL EXAMPLE
 system = load_object("precomputed/systems/System_ωmax10_d60_l200.jld2")
 d = 60
-τ = 120                             # Simulation time
+τ = 200                             # Simulation time
 δ = system.δ                        # Time step
 α = 10                              # Distance between chain atoms
 μ = 1
 
 n_pts = τ / δ |> floor |> Int
-nChain = 150
+nChain = 200
 ρHs = zeros(nChain, n_pts)
 tTraj = ThermalTrajectory(system.ωmax, system.δ, ρHs, nothing)
-σdot0 = [20]
+σdot0 = [25]
 mem = Inf
 
 σ0 = [55]
-Φ0 = [1 / 2, 1, 2, -1 / 2, -1, -2]
-λ = [1 / 2, 1]
-params = [(f, l) for f in Φ0, l in λ] |> vec
+Φ0s = [1 / 2, -1/2, -1, 1]
+# Φ0 = [1 / 2, 1, 2, -1 / 2, -1, -2]
+λs = [1 / 2, 1]
+params = [(f, l) for f in Φ0s, l in λs] |> vec
 println("Starting Calculations")
-Threads.@threads for param in params
+for param in params
     println(param)
     Φ0 = param[1]
     λ = param[2]

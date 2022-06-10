@@ -10,11 +10,11 @@ ax2 = Axis(fig[2, 1], xlabel = L"\tau", ylabel = L"\sigma")
 # REPULSIVE
 
 data = load_object(
-    "data/non_thermal/Single_σ0[55]_σdot0[20]_MemInf_λ1.0_Φ1.0_μ1_d60_ΩTnothing_τ100.jld2",
+    "data/non_thermal/Single_σ0[55]_σdot0[25]_MemInf_λ0.5_Φ1.0_μ1_d60_ΩTnothing_τ200.jld2",
 )
 δ = data.τs[2] - data.τs[1]
 rr = reduce(hcat, [data.ρs[ii, :] .- ii * data.α for ii = 1:size(data.ρs)[1]])
-mx = maximum(abs.(rr))
+mx = maximum(abs.(rr)) / 5
 hm = heatmap!(
     ax1,
     data.τs[1:step_size:end],
@@ -24,8 +24,8 @@ hm = heatmap!(
     colorrange = (-mx, mx),
 )
 lines!(ax1, data.τs, [x[1] for x in data.σs] |> vec, color = my_black, linewidth = 5)
-# xlims!(ax1, (0, 80))
-ylims!(ax1, (0, 1000))
+xlims!(ax1, (0, 100))
+ylims!(ax1, (0, 1500))
 
 lines!(
     ax1,
@@ -39,11 +39,11 @@ Colorbar(fig[1, 2], hm; label = L"\Delta\rho", width = 15, ticksize = 15, tickal
 # ATTRACTIVE
 
 data = load_object(
-    "data/non_thermal/Single_σ0[55]_σdot0[20]_MemInf_λ1.0_Φ-1.0_μ1_d60_ΩTnothing_τ100.jld2",
+    "data/non_thermal/Single_σ0[55]_σdot0[25]_MemInf_λ0.5_Φ-1.0_μ1_d60_ΩTnothing_τ200.jld2",
 )
 δ = data.τs[2] - data.τs[1]
 rr = reduce(hcat, [data.ρs[ii, :] .- ii * data.α for ii = 1:size(data.ρs)[1]])
-mx = maximum(abs.(rr))
+mx = maximum(abs.(rr)) / 5
 hm = heatmap!(
     ax2,
     data.τs[1:step_size:end],
@@ -53,8 +53,8 @@ hm = heatmap!(
     colorrange = (-mx, mx),
 )
 lines!(ax2, data.τs, [x[1] for x in data.σs] |> vec, color = my_black, linewidth = 5)
-# xlims!(ax2, (0, 80))
-ylims!(ax2, (0, 1000))
+xlims!(ax2, (0, 100))
+ylims!(ax2, (0, 1500))
 
 lines!(
     ax2,
@@ -67,6 +67,61 @@ lines!(
 Colorbar(fig[2, 2], hm; label = L"\Delta\rho", width = 15, ticksize = 15, tickalign = 1)
 fig
 save("General_Example.pdf", fig)
+
+
+
+lines(ts[idx], σ_dots[idx])
+
+
+
+
+0.5 * (5 / 2 / pi)^2
+
+
+# lines!(ax1, data.τs, [x[1] for x in data.σs] |> vec, color = my_black, linewidth = 5)
+# # xlims!(ax1, (0, 80))
+# ylims!(ax1, (0, 1500))
+
+# lines!(
+#     ax1,
+#     0:0.1:6,
+#     π * 10 * 9 * (0:0.1:6) .+ data.σs[1][1],
+#     color = my_black,
+#     linewidth = 4,
+#     linestyle = :dash,
+# )
+# Colorbar(fig[1, 2], hm; label = L"\Delta\rho", width = 15, ticksize = 15, tickalign = 1)
+# # ATTRACTIVE
+
+# data = load_object(
+#     "data/non_thermal/Single_σ0[55]_σdot0[20]_MemInf_λ1.0_Φ-1.0_μ1_d60_ΩTnothing_τ120.jld2",
+# )
+# δ = data.τs[2] - data.τs[1]
+# rr = reduce(hcat, [data.ρs[ii, :] .- ii * data.α for ii = 1:size(data.ρs)[1]])
+# mx = maximum(abs.(rr))
+# hm = heatmap!(
+#     ax2,
+#     data.τs[1:step_size:end],
+#     collect(1:size(data.ρs)[1]) .* data.α,
+#     rr[1:step_size:end, :],
+#     colormap = :RdBu,
+#     colorrange = (-mx, mx),
+# )
+# lines!(ax2, data.τs, [x[1] for x in data.σs] |> vec, color = my_black, linewidth = 5)
+# # xlims!(ax2, (0, 80))
+# ylims!(ax2, (0, 1500))
+
+# lines!(
+#     ax2,
+#     0:0.1:6,
+#     π * 10 * 9 * (0:0.1:6) .+ data.σs[1][1],
+#     color = my_black,
+#     linewidth = 4,
+#     linestyle = :dash,
+# )
+# Colorbar(fig[2, 2], hm; label = L"\Delta\rho", width = 15, ticksize = 15, tickalign = 1)
+fig
+
 
 # δ = system.δ
 # τ = 1.1 * (α / σ_dot)
@@ -113,10 +168,10 @@ save("General_Example.pdf", fig)
 # Δs- Δs_2
 
 
-lines!(ax1, (σ_dots), (Δs))
-# lines!(ax1,(σ_dots), (Δs_2))
-lines!(ax1, (σ_dots), (analytic))
-fig
+# lines!(ax1, (σ_dots), (Δs))
+# # lines!(ax1,(σ_dots), (Δs_2))
+# lines!(ax1, (σ_dots), (analytic))
+# fig
 
 
 # ## ENERGY LOSS
@@ -528,3 +583,4 @@ fig
 # # #     rowgap!(fig.layout, 5)
 # # #     save("General_Example.pdf", fig)
 # # # end
+
