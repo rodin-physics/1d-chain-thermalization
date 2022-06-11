@@ -4,7 +4,7 @@ include("../src/main.jl")
 system = load_object("precomputed/systems/System_ωmax10_d60_l200.jld2")
 
 d = 60
-τ = 80                            # Simulation time
+τ = 100                            # Simulation time
 δ = system.δ                        # Time step
 a = 20                               # Distance between chain atoms
 n_pts = τ / δ |> floor |> Int
@@ -13,10 +13,14 @@ nChain = 50
 tTraj = ThermalTrajectory(system.ωmax, system.δ, ρHs, nothing)
 λ = 1;
 Φ = 1;
-@time res1 = motion_solver(system, 1, 1, a, [25], [5], 1, tTraj, Inf, τ)
+# @time res0 = motion_solver(system, 1, 1, a, [25], [5], 1, tTraj, Inf, τ)
+# @time res1 = motion_solver(system, 1, 1, a, [25], [5], 1, tTraj, Inf, τ)
 # @time res1 = motion_solver(system, 1, 1, a, [25], [5], 1, tTraj, Inf, τ)
 # @time res = motion_solver_TEST(system, 1, 1, a, [25], [5], 1, tTraj, Inf, τ)
-@time res = motion_solver_TEST(system, 1, 1, a, [25], [5], 1, tTraj, Inf, τ)
+@time res2 = motion_solver(system, 1, 1, a, [25], [5], 1, tTraj, Inf, τ, threads = true)
+
+
+# a
 # println(res1.σs ≈res.σs)
 # res.σs - res1.σs
 # a
@@ -211,7 +215,7 @@ tTraj = ThermalTrajectory(system.ωmax, system.δ, ρHs, nothing)
 #     return (res[1] * 2 / π)
 # end
 
-# g = GG.(data.τs[1:4000], 5)
-ts = (-1/10):(1/600):(1/10)
-p = [(t * 25) .* exp(- (t * 25)^2/ (2 * 0.5^2)) for t in ts]
-scatter(ts .* 25, p)
+# # g = GG.(data.τs[1:4000], 5)
+# ts = (-1/10):(1/600):(1/10)
+# p = [(t * 25) .* exp(- (t * 25)^2/ (2 * 0.5^2)) for t in ts]
+# scatter(ts .* 25, p)
