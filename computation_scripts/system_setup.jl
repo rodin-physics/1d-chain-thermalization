@@ -1,4 +1,4 @@
-# using Random
+using Random
 include("../src/main.jl")
 
 ## Prepare the ChainSystem's by calculating the recoil term
@@ -11,48 +11,56 @@ if (!isfile("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax).jld2"))
     res = mkChainSystem(ωmax, τmax, lmax, d)
     save_object("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax).jld2", res)
 end
-
+println("Next computation")
 ## Prepare the ultrafine ChainSystem's by calculating the recoil term
-d = 6000     # Number of time steps in the fastest chain mode
-τmax = 4     # Simulation time
-ωmax = 10    # Maximum frequency
-lmax = 10    # Number of chain atoms tracked
-
-if (!isfile("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax).jld2"))
-    res = mkChainSystem(ωmax, τmax, lmax, d)
-    save_object("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax).jld2", res)
-end
-
-
-# ## Precompute the thermal trajectories
-# m = 1                           # Mass of the chain atoms
-# τ = 1000;
-# t_max = τ * t_M                 # Simulation time
-
-# Ωmax = sqrt(4 * k / m + K / m)  # Largest chain frequency
-# δ = (2 * π / Ωmax) / d          # Time step
-# n_pts = floor(t_max / δ) |> Int # Number of time steps given t_max and δ
-
-# ## Thermal Trajectory
-# n_masses = 1000000              # Number of chain masses for simulating r0
-# qs = range(0, π / 2, length = round(n_masses / 2) |> Integer)
-# Ωs = Ω.(K, k, m, qs)
-# ΩTs = [1e-5, 1, 2, 5, 10, 20, 50, 100, 150, 250, 500, 1000]
-# for ii = 1:length(ΩTs)
-#     println(ii)
-#     ΩT = ΩTs[ii]
-
-#     if (!isfile("precomputed/rH/rH_K$(K)_k$(k)_m$(m)_d$(d)_ΩT$(ΩT)_τ$(τ)_hbar$(ħ).jld2"))
-#         # Seeding the RNG
-#         Random.seed!(150)
-#         ϕs = 2 * π * rand(length(qs))
-#         ζs = ζq.(Ωs, ΩT, ħ)
-#         rHs = @showprogress pmap(n -> ζH(n, δ, ζs, ϕs, Ωs) / √(m), 1:n_pts)
-#         res = ThermalTrajectory(k, K, m, δ, rHs, ΩT, ħ)
-#         save_object(
-#             "precomputed/rH/rH_K$(K)_k$(k)_m$(m)_d$(d)_ΩT$(ΩT)_τ$(τ)_hbar$(ħ).jld2",
-#             res,
-#         )
-#     end
-
+# d = 6000     # Number of time steps in the fastest chain mode
+# τmax = 4     # Simulation time
+# ωmax = 10    # Maximum frequency
+# lmax = 10    # Number of chain atoms tracked
+#
+# if (!isfile("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax).jld2"))
+#     res = mkChainSystem(ωmax, τmax, lmax, d)
+#     save_object("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax).jld2", res)
 # end
+
+
+## Precompute the thermal trajectories
+τ = 200                         # Simulation time
+δ = (1 / ωmax) / d              # Time step
+n_pts = floor(τmax / δ) |> Int  # Number of time steps given t_max and δ
+n_masses = 200                  # Number of chain masses for simulating ρ0
+
+qs = range(0, π / 2, length = round(n_masses / 2) |> Integer)
+ωs = ω.(ωmax, qs)
+
+# Generate random phases
+Random.seed!(150)
+ϕ1s = 2 * π * rand(length(qs))
+Random.seed!(152)
+ϕ2s = 2 * π * rand(length(qs))
+
+# Range of temperatures
+ωTs = [1e-5, 1, 5, 10, 20, 50, 100, 250, 500]
+
+for ωT in ωTs
+    println("ωT is ", ωT)
+    # Prepare ρHs matrix
+    ρHs = zeros(n_masses, n_pts)
+    ζs = ζq.(ωs, ωT)
+
+    if (!isfile("precomputed/rH/rH_ωmax$(ωmax)_d$(d)_ωT$(ωT)_τ$(τ).jld2"))
+        # Populate each row of matrix
+        @showprogress for ii in 1:n_masses
+            ρHs[ii, :] = map(n ->
+                            (ζH_sin(n, δ, ζs, ϕ1s, ωs, qs, ii) +
+                             ζH_cos(n, δ, ζs, ϕ2s, ωs, qs, ii)),
+                             1:n_pts)
+        end
+        res = ThermalTrajectory(ωmax, δ, ρHs, ωT)
+        save_object(
+            "precomputed/rH/rH_ωmax$(ωmax)_d$(d)_ωT$(ωT)_τ$(τ).jld2",
+            res,
+        )
+    end
+
+end

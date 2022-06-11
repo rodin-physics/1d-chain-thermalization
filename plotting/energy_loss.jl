@@ -1,30 +1,38 @@
 include("../src/main.jl")
-
-α = 10
-μ = 1
-σ0 = 45
-nChain = 10
-vPts = 100
-λs = [1 / 8, 1 / 4, 1 / 2, 1]
 system_slow = load_object("precomputed/systems/System_ωmax10_d60_l200.jld2")
 system_fast = load_object("precomputed/systems/System_ωmax10_d6000_l10.jld2")
 colors = [my_vermillion, my_orange, my_green, my_sky, my_blue]
 
+## System parameters
+α = 10                  # Distance between chain atoms
+μ = 1                   # Dimensionless mass
+σ0 = 4.5 * α            # Mobile particle initial position
+nChain = 10             # Number of chain atoms
+vPts = 100
+λs = [1 / 8, 1 / 4, 1 / 2, 1]
+
+## Numerically calculate the energy loss for given system at zero temperature
 function Δ_numeric(σ_dot, σ0, Φ0, λ, system)
+    # Initialize parameters
     δ = system.δ
     τ = 1.25 * (α / σ_dot)
     n_pts = τ / δ |> floor |> Int
     ρHs = zeros(nChain, n_pts)
     tTraj = ThermalTrajectory(system.ωmax, system.δ, ρHs, nothing)
 
+    # Solve mobile particle trajectory
     res = motion_solver(system, Φ0, λ, α, [σ0], [σ_dot], μ, tTraj, Inf, τ)
-
     σs = res.σs |> vec
+
+    # Find index of particle at the next midpoint
     mid_pt_idx = findmin(abs.(σs .- (σ0 + α)))[2]
+    # Calculate speed and K.E. of particle at next midpoint
     v_final = (σs[mid_pt_idx] - σs[mid_pt_idx-1]) / δ
-    return (μ / 2 / (2 * π)^2 * (σ_dot^2 - v_final^2))
+    kinetic = (μ / 2 / (2 * π)^2 * (σ_dot^2 - v_final^2))
+    return kinetic
 end
 
+## Analytic energy loss of mobile particle per encounter with chain atom
 function Δ_analytic(v, Φ, λ, Ω)
     z = (2 * π * λ / v)^2
     return (
@@ -38,7 +46,7 @@ function Δ_analytic(v, Φ, λ, Ω)
     )
 end
 
-# Low speed
+## Low speed
 d = 60
 Φ0 = 0.025
 σ_dots = range(2, 20, length = vPts)
@@ -81,7 +89,7 @@ axislegend(ax1, position = :rb)
 save("Slow_dissipation.pdf", fig)
 
 
-# High speed
+## High speed
 d = 60
 Φ0 = 2
 σ_dots = range(20, 350, length = vPts)
