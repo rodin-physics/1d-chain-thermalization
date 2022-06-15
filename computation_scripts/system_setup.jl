@@ -1,23 +1,28 @@
-using Distributed
-using Random
-proc_num = 10
-addprocs(proc_num - nprocs())
-
-@everywhere include("../src/main.jl")
+# using Random
+include("../src/main.jl")
 
 ## Prepare the ChainSystem's by calculating the recoil term
-d = 60                              # Number of time steps in the fastest chain mode
-k = 20                              # Spring force constant
-K = 1                               # Confining potential force constant
-m = 1                               # Mass of the chain atoms
-t_Slow = 2 * π / Ω(K, k, m, 0)      # Period of the slowest chain mode
-t_max = 1000 * t_Slow               # Simulation time
-l_max = 500                         # Number of chain atoms tracked
+d = 60       # Number of time steps in the fastest chain mode
+τmax = 300    # Simulation time
+ωmax = 10    # Maximum frequency
+lmax = 300    # Number of chain atoms tracked
 
-if (!isfile("precomputed/systems/System_K$(K)_k$(k)_m$(m)_d$(d)_l$(l_max).jld2"))
-    res = mkChainSystem(K, k, m, t_max, 0:l_max, d)
-    save_object("precomputed/systems/System_K$(K)_k$(k)_m$(m)_d$(d)_l$(l_max).jld2", res)
+if (!isfile("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax).jld2"))
+    res = mkChainSystem(ωmax, τmax, lmax, d)
+    save_object("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax).jld2", res)
 end
+
+## Prepare the ultrafine ChainSystem's by calculating the recoil term
+d = 6000     # Number of time steps in the fastest chain mode
+τmax = 4     # Simulation time
+ωmax = 10    # Maximum frequency
+lmax = 10    # Number of chain atoms tracked
+
+if (!isfile("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax).jld2"))
+    res = mkChainSystem(ωmax, τmax, lmax, d)
+    save_object("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax).jld2", res)
+end
+
 
 # ## Precompute the thermal trajectories
 # m = 1                           # Mass of the chain atoms

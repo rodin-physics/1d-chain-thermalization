@@ -1,148 +1,99 @@
-using Distributed
+include("../src/main.jl")
 
-proc_num = 9
-addprocs(proc_num - nprocs())
+## SINGLE PASS LOSS
+α = 10
+μ = 1
+σ0 = 45
+nChain = 10
+vPts = 100
+λs = [1 / 8, 1 / 4, 1 / 2, 1]
+system_slow = load_object("precomputed/systems/System_ωmax10_d60_l200.jld2")
+system_fast = load_object("precomputed/systems/System_ωmax10_d6000_l10.jld2")
+slow_res = Dict{Tuple{Float64,Float64},Tuple{Vector{Float64},Vector{Float64}}}()
+fast_res = Dict{Tuple{Float64,Float64},Tuple{Vector{Float64},Vector{Float64}}}()
 
-@everywhere include("../src/main.jl")
+function Δ_numeric(σ_dot, σ0, Φ0, λ, system)
+    δ = system.δ
+    τ = 1.25 * (α / σ_dot)
+    n_pts = τ / δ |> floor |> Int
+    ρHs = zeros(nChain, n_pts)
+    tTraj = ThermalTrajectory(system.ωmax, system.δ, ρHs, nothing)
 
-system = load_object("precomputed/systems/System_K1_k20_m1_d60_l500.jld2")
+    res = motion_solver(system, Φ0, λ, α, [σ0], [σ_dot], μ, tTraj, Inf, τ, threads = true)
 
+    σs = res.σs |> vec
+    mid_pt_idx = findmin(abs.(σs .- (σ0 + α)))[2]
+    v_final = (σs[mid_pt_idx] - σs[mid_pt_idx-1]) / δ
+    return (μ / 2 / (2 * π)^2 * (σ_dot^2 - v_final^2))
+end
+
+# Low speed
+Φ0s = 0.025
+par = [(λ, Φ0) for λ in λs, Φ0 in [Φ0s, -Φ0s]] |> vec
+σ_dots = range(2, 20, length = vPts)
+
+
+if (!isfile("data/non_thermal/Single_Pass_Slow_Φ$(Φ0s)_μ$(μ).jld2"))
+
+    for p in par
+        λ = p[1]
+        Φ0 = p[2]
+        res = [Δ_numeric(x, σ0, Φ0, λ, system_slow) for x in σ_dots]
+        merge!(slow_res, Dict((Φ0, λ) => (σ_dots, res)))
+    end
+
+    save_object("data/non_thermal/Single_Pass_Slow_Φ$(Φ0s)_μ$(μ).jld2", slow_res)
+end
+
+# High speed
+Φ0s = 2.0
+par = [(λ, Φ0) for λ in λs, Φ0 in [Φ0s, -Φ0s]] |> vec
+σ_dots = range(20, 350, length = vPts)
+
+if (!isfile("data/non_thermal/Single_Pass_Fast_Φ$(Φ0s)_μ$(μ).jld2"))
+
+    for p in par
+        λ = p[1]
+        Φ0 = p[2]
+        res = [Δ_numeric(x, σ0, Φ0, λ, system_fast) for x in σ_dots]
+        merge!(fast_res, Dict((Φ0, λ) => (σ_dots, res)))
+    end
+
+    save_object("data/non_thermal/Single_Pass_Fast_Φ$(Φ0s)_μ$(μ).jld2", fast_res)
+end
+
+## FULL TRAJECTORY
+system = load_object("precomputed/systems/System_ωmax10_d60_l300.jld2")
 d = 60
-
-τ = 20                              # Simulation time
-Ωmin = √(system.K / system.m)       # Minimum phonon frequency
-tmin = 2 * π / Ωmin                 # Period of the slowest mode
+τ = 250                             # Simulation time
 δ = system.δ                        # Time step
-n_pts = floor(τ * tmin / δ) |> Int  # Number of time steps
-nChain = 50                         # Number of chain atoms tracked
-a = 1                               # Distance between chain atoms
+α = 10                              # Distance between chain atoms
+μ = 1
+σ0 = [55]
 
-rHs = [a .* collect(1:nChain) for n = 1:n_pts]
-tTraj = ThermalTrajectory(system.k, system.K, system.m, a, system.δ, rHs, nothing, ħ)
+n_pts = τ / δ |> floor |> Int
+nChain = 250
+ρHs = zeros(nChain, n_pts)
+tTraj = ThermalTrajectory(system.ωmax, system.δ, ρHs, nothing)
+mem = Inf
 
-# Modify the system variable to reduce its size for parallelization
-m = system.m            # Mass of the chain atoms
-k = system.k            # Spring force constant
-K = system.K            # Confining potential force constant
-δ = system.δ            # Array of time steps
-G_list = system.G       # Memory term
-G_list = G_list[1:n_pts]
-G_list = [x[1:nChain] for x in G_list]
+params = [(1, 1 / 2, [30]), (-1, 1 / 2, [30])]
 
-system = ChainSystem(k, K, m, δ, G_list)
-
-## Width and Depth Dependence
-s = [1 / 2, 1 / 4, 1 / 8, 1 / 16]
-F = [-1 / 2, -1 / 4, -1 / 8, -1 / 16, -1/32, 1/32, 1 / 16, 1 / 8, 1 / 4, 1 / 2]
-# F = [-1, -1 / 2, -1 / 4, 1 / 4, 1 / 2, 1]
-v0 = [[1 / 2]]
-M = [1]
-mems = [Inf]
-
-parameters = [(w, x, y, z, mem) for w in M, x in s, y in F, z in v0, mem in mems] |> vec
-x0 = [5.5]
-@showprogress pmap(parameters) do param
-    M = param[1]
-    s = param[2]
-    F = param[3]
-    v0 = param[4]
-    mem = param[5]
+println("Starting Calculations")
+for param in params
+    println(param)
+    Φ0 = param[1]
+    λ = param[2]
+    σdot0 = param[3]
     if (
         !isfile(
-            "data/Non_Thermal/Single_x0$(x0)_v0$(v0)_Mem$(mem)_s$(s)_F$(F)_M$(M)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
+            "data/non_thermal/Single_σ0$(σ0)_σdot0$(σdot0)_Mem$(mem)_λ$(λ)_Φ$(Φ0)_μ$(μ)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
         )
     )
-        res = motion_solver(system, F, s, M, x0, v0, tTraj, mem, τ)
+
+        res = motion_solver(system, Φ0, λ, α, σ0, σdot0, μ, tTraj, mem, τ, threads = true)
         save_object(
-            "data/Non_Thermal/Single_x0$(x0)_v0$(v0)_Mem$(mem)_s$(s)_F$(F)_M$(M)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
-            res,
-        )
-    end
-end
-
-## Speed dependence
-s = [1 / 8, 1/4]
-F = [1/8, 1/4, 1/2, 1, 2]
-v0 = [[1 / 2], [1], [2], [4], [5]]
-mems = [Inf]
-M = [1]
-
-
-parameters = [(w, x, y, z, mem) for w in M, x in s, y in F, z in v0, mem in mems] |> vec
-x0 = [5.5]
-
-@showprogress pmap(parameters) do param
-    M = param[1]
-    s = param[2]
-    F = param[3]
-    v0 = param[4]
-    mem = param[5]
-    if (
-        !isfile(
-            "data/Non_Thermal/Single_x0$(x0)_v0$(v0)_Mem$(mem)_s$(s)_F$(F)_M$(M)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
-        )
-    )
-        res = motion_solver(system, F, s, M, x0, v0, tTraj, mem, τ)
-        save_object(
-            "data/Non_Thermal/Single_x0$(x0)_v0$(v0)_Mem$(mem)_s$(s)_F$(F)_M$(M)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
-            res,
-        )
-    end
-end
-
-s = [1 / 8]
-F = [1/16, 1/8, 1/4, 1/2, 1, 2]
-v0 = [[4],[6]]
-mems = [Inf]
-M = [Inf]
-
-
-parameters = [(w, x, y, z, mem) for w in M, x in s, y in F, z in v0, mem in mems] |> vec
-x0 = [5.5]
-
-@showprogress pmap(parameters) do param
-    M = param[1]
-    s = param[2]
-    F = param[3]
-    v0 = param[4]
-    mem = param[5]
-    if (
-        !isfile(
-            "data/Non_Thermal/Single_x0$(x0)_v0$(v0)_Mem$(mem)_s$(s)_F$(F)_M$(M)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
-        )
-    )
-        res = motion_solver(system, F, s, M, x0, v0, tTraj, mem, τ)
-        save_object(
-            "data/Non_Thermal/Single_x0$(x0)_v0$(v0)_Mem$(mem)_s$(s)_F$(F)_M$(M)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
-            res,
-        )
-    end
-end
-
-## Memory Dependence
-s = [1 / 4]
-F = [-1 / 4, 1 / 4]
-v0 = [[1 / 2]]
-M = [1 / 2]
-mems = [0, 0.05, 0.5, 1, 10, 50, Inf]
-
-parameters = [(w, x, y, z, mem) for w in M, x in s, y in F, z in v0, mem in mems] |> vec
-x0 = [5.5]
-
-@showprogress pmap(parameters) do param
-    M = param[1]
-    s = param[2]
-    F = param[3]
-    v0 = param[4]
-    mem = param[5]
-    if (
-        !isfile(
-            "data/Non_Thermal/Single_x0$(x0)_v0$(v0)_Mem$(mem)_s$(s)_F$(F)_M$(M)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
-        )
-    )
-        res = motion_solver(system, F, s, M, x0, v0, tTraj, mem, τ)
-        save_object(
-            "data/Non_Thermal/Single_x0$(x0)_v0$(v0)_Mem$(mem)_s$(s)_F$(F)_M$(M)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
+            "data/non_thermal/Single_σ0$(σ0)_σdot0$(σdot0)_Mem$(mem)_λ$(λ)_Φ$(Φ0)_μ$(μ)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
             res,
         )
     end

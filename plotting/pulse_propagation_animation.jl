@@ -9,8 +9,8 @@ Gs = s.G
 
     ax1 = Axis(fig[1, 1], xlabel = L"j", ylabel = L"\Delta r")
     sc = scatter!(ax1, 0:500, Gs[end-10*jj], markersize = 2)
-    t_fast = round(10*jj / 60, digits = 2)
-    t_slow = round(10*jj / 60 / 9, digits = 2)
+    t_fast = round(10 * jj / 60, digits = 2)
+    t_slow = round(10 * jj / 60 / 9, digits = 2)
     text!(
         ax1,
         L"t = %$t_fast \times t_{fast} = %$t_slow \times t_{slow}",
