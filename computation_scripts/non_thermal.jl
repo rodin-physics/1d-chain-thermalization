@@ -19,7 +19,7 @@ function Δ_numeric(σ_dot, σ0, Φ0, λ, system)
     ρHs = zeros(nChain, n_pts)
     tTraj = ThermalTrajectory(system.ωmax, system.δ, ρHs, nothing)
 
-    res = motion_solver(system, Φ0, λ, α, [σ0], [σ_dot], μ, tTraj, Inf, τ, threads=true)
+    res = motion_solver(system, Φ0, λ, α, [σ0], [σ_dot], μ, tTraj, Inf, τ, threads = true)
 
     σs = res.σs |> vec
     mid_pt_idx = findmin(abs.(σs .- (σ0 + α)))[2]
@@ -30,7 +30,7 @@ end
 # Low speed
 Φ0s = 0.025
 par = [(λ, Φ0) for λ in λs, Φ0 in [Φ0s, -Φ0s]] |> vec
-σ_dots = range(2, 20, length=vPts)
+σ_dots = range(2, 20, length = vPts)
 
 
 if (!isfile("data/non_thermal/Single_Pass_Slow_Φ$(Φ0s)_μ$(μ).jld2"))
@@ -48,7 +48,7 @@ end
 # High speed
 Φ0s = 2.0
 par = [(λ, Φ0) for λ in λs, Φ0 in [Φ0s, -Φ0s]] |> vec
-σ_dots = range(20, 350, length=vPts)
+σ_dots = range(20, 350, length = vPts)
 
 if (!isfile("data/non_thermal/Single_Pass_Fast_Φ$(Φ0s)_μ$(μ).jld2"))
 
@@ -77,9 +77,7 @@ nChain = 250
 tTraj = ThermalTrajectory(system.ωmax, system.δ, ρHs, nothing)
 mem = Inf
 
-params = [
-    (1, 1 / 2, [30]), (-1, 1 / 2, [30]),
-]
+params = [(1, 1 / 2, [30]), (-1, 1 / 2, [30])]
 
 println("Starting Calculations")
 for param in params
@@ -93,7 +91,7 @@ for param in params
         )
     )
 
-        res = motion_solver(system, Φ0, λ, α, σ0, σdot0, μ, tTraj, mem, τ, threads=true)
+        res = motion_solver(system, Φ0, λ, α, σ0, σdot0, μ, tTraj, mem, τ, threads = true)
         save_object(
             "data/non_thermal/Single_σ0$(σ0)_σdot0$(σdot0)_Mem$(mem)_λ$(λ)_Φ$(Φ0)_μ$(μ)_d$(d)_ΩT$(nothing)_τ$(τ).jld2",
             res,

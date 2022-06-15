@@ -245,7 +245,7 @@ function Δ_traj(data)
 
     idx =
         [argmin(abs.(σs .- (n + 1 / 2) * data.α)) for n = start_lattice_pos:max_lattice_pos]
-
+    idx = filter(x -> x <= length(σs) - 1, idx)
     # Get speeds at these points and corresponding times
     σ_dots = (σs[idx.+1] - σs[idx]) ./ δ
     τs = data.τs[idx]
@@ -255,6 +255,6 @@ function Δ_traj(data)
     KE = KE[idx]
     σ_dots = σ_dots[idx]
     Δs = KE[1:end-1] - KE[2:end]
-    return (σ_dots[1:end - 1], Δs)
+    return (σ_dots[1:end-1], Δs)
 
 end
