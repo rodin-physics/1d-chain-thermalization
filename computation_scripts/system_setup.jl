@@ -30,7 +30,7 @@ end
 n_pts = floor(τmax / δ) |> Int  # Number of time steps given t_max and δ
 n_masses = 20                  # Number of chain masses for simulating ρ0
 
-qs = range(0, π / 2, length = round(n_masses/2) |> Integer)
+qs = range(0, π / 2, length = round(n_masses / 2) |> Integer)
 ωs = ω.(ωmax, qs)
 
 # Generate random phases
@@ -47,14 +47,11 @@ for ωT in ωTs
 
     if (!isfile("precomputed/rH/rH_ωmax$(ωmax)_d$(d)_ωT$(ωT)_τ$(τ).jld2"))
         # Populate each row of matrix
-        @showprogress for ii in 1:n_masses
+        @showprogress for ii = 1:n_masses
             ρHs[ii, :] = map(n -> ζH(n, δ, ζs, ϕs, ωs, qs, ii), 1:n_pts)
         end
         res = ThermalTrajectory(ωmax, δ, ρHs, ωT)
-        save_object(
-            "precomputed/rH/rH_ωmax$(ωmax)_d$(d)_ωT$(ωT)_τ$(τ).jld2",
-            res,
-        )
+        save_object("precomputed/rH/rH_ωmax$(ωmax)_d$(d)_ωT$(ωT)_τ$(τ).jld2", res)
     end
 
 end
