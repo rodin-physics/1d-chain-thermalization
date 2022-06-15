@@ -3,21 +3,21 @@ include("../src/main.jl")
 # # GENERAL EXAMPLE
 system = load_object("precomputed/systems/System_ωmax10_d60_l200.jld2")
 d = 60
-τ = 120                             # Simulation time
+τ = 100                             # Simulation time
 δ = system.δ                        # Time step
 α = 10                              # Distance between chain atoms
 μ = 1
 
 n_pts = τ / δ |> floor |> Int
-nChain = 150
+nChain = 50
 
-tTraj = load_object("precomputed/rH/rH_ωmax10_d60_ωT1.0e-6_τ200.jld2")
+tTraj = load_object("precomputed/rH/rH_ωmax10_d60_ωT500.0_τ200.jld2")
 ωT = tTraj.ωT
 
-σdot0 = [20]
+σdot0 = [0]
 mem = Inf
 
-σ0 = [35]
+σ0 = [225]
 Φ0 = [-1, 1]
 λ = [1]
 params = [(f, l) for f in Φ0, l in λ] |> vec

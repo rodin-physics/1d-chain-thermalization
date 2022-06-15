@@ -50,7 +50,7 @@ struct SystemSolution
     μ::Float64                  # Mass of the mobile atoms
     τs::Vector{Float64}         # Time steps
     τ0::Float64                 # Memory
-    α::Float64                 # Spacing between chain atoms
+    α::Float64                  # Spacing between chain atoms
     Φ::Float64                  # Magnitude of the Gaussian potential
     λ::Float64                  # Standard deviation of the potential
     σs::Matrix{Float64}         # Positions of mobile atoms
@@ -112,18 +112,11 @@ end
 
 # Homogeneous displacement of the chain atom g at time step n given a set of ωs
 # and the corresponding ζs and ϕs as a sum of normal coordinates.
-function ζH_sin(n, δ, ζs, ϕs, ωs, qs, g)
+function ζH(n, δ, ζs, ϕs, ωs, qs, g)
     n_ζ = length(ζs)
 
-    res = [sin(qs[x] * g) * ζs[x] * cos(2 * π * δ * n * ωs[x] + ϕs[x]) / √(n_ζ) for x = 1:n_ζ] |> sum
-    return res
-end
-
-function ζH_cos(n, δ, ζs, ϕs, ωs, qs, g)
-    n_ζ = length(ζs)
-
-    res = [cos(qs[x] * g) * ζs[x] * cos(2 * π * δ * n * ωs[x] + ϕs[x]) / √(n_ζ) for x = 1:n_ζ] |> sum
-    return res
+    res = [exp(4im * qs[x] * g) * ζs[x] * cos(2 * π * δ * n * ωs[x] + ϕs[x]) / √(n_ζ) for x = 1:n_ζ] |> sum
+    return real(res)
 end
 
 # function motion_solver(
@@ -277,4 +270,41 @@ function motion_solver(
 
 
     return SystemSolution(ωmax, μ, τs, τ0, α, Φ0, λ, σs, ρs, tTraj.ωT)
+end
+
+function Δ_analytic(v, Φ, λ, Ω)
+    z = (2 * π * λ / v)^2
+    return (
+        4 * π^3 * Φ^2 / v^2 *
+        z *
+        exp(-z * (Ω^2 + 1) / 2) *
+        (
+            besseli(0, z * (Ω^2 - 1) / 2) +
+            (Ω^2 - 1) / 2 * (besseli(0, z * (Ω^2 - 1) / 2) - besseli(1, z * (Ω^2 - 1) / 2))
+        )
+    )
+end
+
+function Δ_traj(data)
+    δ = data.τs[2] - data.τs[1]
+    σs = data.σs |> vec
+    # Get indices of points when the mobile particle
+    # is halfway between chain's equilibrium points
+    max_lattice_pos = min(data.ρs[end, 1], maximum(σs)) / data.α |> floor |> Int
+    start_lattice_pos = floor(σs[1] / data.α) |> Int
+
+    idx =
+        [argmin(abs.(σs .- (n + 1 / 2) * data.α)) for n = start_lattice_pos:max_lattice_pos]
+
+    # Get speeds at these points and corresponding times
+    σ_dots = (σs[idx.+1] - σs[idx]) ./ δ
+    τs = data.τs[idx]
+    # Get the kinetic energy
+    KE = 0.5 * data.μ * (σ_dots ./ 2 ./ π) .^ 2
+    idx = findall(x -> x > data.Φ, KE)
+    KE = KE[idx]
+    σ_dots = σ_dots[idx]
+    Δs = KE[1:end-1] - KE[2:end]
+    return (σ_dots[1:end - 1], Δs)
+
 end
