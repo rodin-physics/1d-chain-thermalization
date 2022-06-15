@@ -6,7 +6,6 @@ using LaTeXStrings
 using LinearAlgebra
 using ProgressMeter
 using QuadGK
-using SparseArrays
 using SpecialFunctions
 using Statistics
 using StatsBase
@@ -201,7 +200,8 @@ function motion_solver(
     μ::T where {T<:Real},
     tTraj::ThermalTrajectory,
     τ0::T where {T<:Real},
-    τ::T where {T<:Real},
+    τ::T where {T<:Real};
+    threads::Bool = false,
 )
     ωmax = system.ωmax              # Maximum chain frequency
     δ = system.δ                    # Time step
@@ -232,7 +232,7 @@ function motion_solver(
         σs = zeros(length(σ0), n_pts)
         τ0_pts = min(τ0_pts, n_pts) |> Int
         Γ_mat = (2 * π * δ) .* Γ_mat[1:nChain, 1:τ0_pts]
-        Γ_mat = vcat(reverse(Γ_mat, dims=1)[1:end-1, :], Γ_mat)
+        Γ_mat = vcat(reverse(Γ_mat, dims = 1)[1:end-1, :], Γ_mat)
 
     end
     # Interaction terms
@@ -243,31 +243,54 @@ function motion_solver(
     σs[:, 1] = σ0
     σs[:, 2] = σ0 + δ .* σ_dot0
 
-    @showprogress for ii = 3:n_pts
-        nxt = ii        # Next time step index
-        curr = ii - 1   # Current time step index
-        # Calculate the forces on all the masses
-        U_pr = [dU_dρ(ρ - σ) for ρ in ρs[:, curr], σ in σs[:, curr]]
-        U_pr_chain = sum(U_pr, dims=2) |> vec
-        U_pr_mob = -sum(U_pr, dims=1) |> vec
-        # Find the indices of the chain masses where the force is larger than ϵ
-        idx = findall(x -> abs(x) > ϵ, U_pr_chain)
-        # For each of the impulses, get the appropriate slice of Γ_mat, multiply
-        # it by the impulse and use the result to modify the chain positions
-        steps_left = n_pts - curr
-        steps_per_thread = steps_left ÷ Threads.nthreads()
-        step_alloc = [(x*(steps_per_thread+1)+1):min(steps_left, (x + 1) * (steps_per_thread + 1))
-                      for x in 0:Threads.nthreads()-1]
-        Threads.@threads for t in 1:Threads.nthreads()
-            for n in idx
-                view(ρs, :, curr .+ step_alloc[t]) .-= view(Γ_mat, nChain-n+1:2*nChain-n, step_alloc[t]) .* U_pr_chain[n]
+    if threads == true
+        @showprogress for ii = 3:n_pts
+            nxt = ii        # Next time step index
+            curr = ii - 1   # Current time step index
+            # Calculate the forces on all the masses
+            U_pr = [dU_dρ(ρ - σ) for ρ in ρs[:, curr], σ in σs[:, curr]]
+            U_pr_chain = sum(U_pr, dims = 2) |> vec
+            U_pr_mob = -sum(U_pr, dims = 1) |> vec
+            # Find the indices of the chain masses where the force is larger than ϵ
+            idx = findall(x -> abs(x) > ϵ, U_pr_chain)
+            # For each of the impulses, get the appropriate slice of Γ_mat, multiply
+            # it by the impulse and use the result to modify the chain positions
+            steps_left = n_pts - curr
+            steps_per_thread = steps_left ÷ Threads.nthreads()
+            step_alloc = [
+                (x*(steps_per_thread+1)+1):min(
+                    steps_left,
+                    (x + 1) * (steps_per_thread + 1),
+                ) for x = 0:Threads.nthreads()-1
+            ]
+            Threads.@threads for t = 1:Threads.nthreads()
+                for n in idx
+                    view(ρs, :, curr .+ step_alloc[t]) .-=
+                        view(Γ_mat, nChain-n+1:2*nChain-n, step_alloc[t]) .* U_pr_chain[n]
+                end
             end
+            σs[:, nxt] = -(2 * π * δ)^2 / μ .* U_pr_mob + 2 .* σs[:, curr] - σs[:, curr-1]
         end
-        σs[:, nxt] = -(2 * π * δ)^2 / μ .* U_pr_mob + 2 .* σs[:, curr] - σs[:, curr-1]
+    else
+        @showprogress for ii = 3:n_pts
+            nxt = ii        # Next time step index
+            curr = ii - 1   # Current time step index
+            # Calculate the forces on all the masses
+            U_pr = [dU_dρ(ρ - σ) for ρ in ρs[:, curr], σ in σs[:, curr]]
+            U_pr_chain = sum(U_pr, dims = 2) |> vec
+            U_pr_mob = -sum(U_pr, dims = 1) |> vec
+            # Find the indices of the chain masses where the force is larger than ϵ
+            idx = findall(x -> abs(x) > ϵ, U_pr_chain)
+            # For each of the impulses, get the appropriate slice of Γ_mat, multiply
+            # it by the impulse and use the result to modify the chain positions
+            for n in idx
+                Γ_curr = view(Γ_mat, nChain-n+1:2*nChain-n, 1:min(τ0_pts, n_pts - ii + 1))
+                ρs_upd = view(ρs, :, nxt:nxt+size(Γ_curr)[2]-1)
+                ρs_upd .-= Γ_curr .* U_pr_chain[n]
+            end
+            σs[:, nxt] = -(2 * π * δ)^2 / μ .* U_pr_mob + 2 .* σs[:, curr] - σs[:, curr-1]
+        end
     end
-
-
-
 
     return SystemSolution(ωmax, μ, τs, τ0, α, Φ0, λ, σs, ρs, tTraj.ωT)
 end
@@ -295,7 +318,7 @@ function Δ_traj(data)
 
     idx =
         [argmin(abs.(σs .- (n + 1 / 2) * data.α)) for n = start_lattice_pos:max_lattice_pos]
-
+    idx = filter(x -> x <= length(σs) - 1, idx)
     # Get speeds at these points and corresponding times
     σ_dots = (σs[idx.+1] - σs[idx]) ./ δ
     τs = data.τs[idx]
@@ -305,6 +328,6 @@ function Δ_traj(data)
     KE = KE[idx]
     σ_dots = σ_dots[idx]
     Δs = KE[1:end-1] - KE[2:end]
-    return (σ_dots[1:end - 1], Δs)
+    return (σ_dots[1:end-1], Δs)
 
 end

@@ -36,16 +36,16 @@ save("Pulse_Propagation.pdf", fig)
 
 
 ωmax = 10
-τ_max = 1
-n_Pts = 1500
+τ_max = 10
+n_Pts = 2500
 times = range(0, τ_max, length = n_Pts)
-ls = [0, 1]
-Γs =[Γ(τ, ls, ωmax) for τ in times]
+ls = [0, 20]
+Γs = [Γ(τ, ls, ωmax) for τ in times]
 colors = [my_vermillion, my_green, my_sky, my_blue]
 # speed = (ωmax - 1) / 2 * 2 * π
 
 fig = Figure(resolution = (600, 400), font = "CMU Serif", fontsize = 18)
-ax1 = Axis(fig[1, 1], ylabel = L"\Gamma_n(\tau)", xlabel = L"n")
+ax1 = Axis(fig[1, 1], ylabel = L"\Gamma_n(\tau)", xlabel = L"\tau")
 for ii = 1:length(ls)
     sc = lines!(
         ax1,
@@ -53,7 +53,8 @@ for ii = 1:length(ls)
         [x[ii] for x in Γs],
         markersize = 5,
         color = colors[ii],
-        label = L"\tau = %$(times[ii])",
+        label = L"n = %$(ls[ii])",
+        linewidth = 1,
     )
 
     # ln = vlines!(
@@ -66,9 +67,6 @@ for ii = 1:length(ls)
 end
 # xlims!(ax1, (-0.05, 500))
 # ylims!(ax1, (-0.1, 0.1))
-# axislegend(ax1, position = :rb, labelsize = 18, nbanks = 4)
+axislegend(ax1, position = :rt, labelsize = 18)
 fig
-# save("Pulse_Propagation.pdf", fig)
-[x[1] for x in Γs]
-
-Γ(10/17.5, [1], 10)
+save("Gamma.pdf", fig)

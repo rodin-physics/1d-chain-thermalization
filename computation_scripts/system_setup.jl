@@ -2,16 +2,16 @@ using Random
 include("../src/main.jl")
 
 ## Prepare the ChainSystem's by calculating the recoil term
-# d = 60       # Number of time steps in the fastest chain mode
-# τmax = 200    # Simulation time
-# ωmax = 10    # Maximum frequency
-# lmax = 200    # Number of chain atoms tracked
-#
-# if (!isfile("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax).jld2"))
-#     res = mkChainSystem(ωmax, τmax, lmax, d)
-#     save_object("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax).jld2", res)
-# end
-# println("Next computation")
+d = 60       # Number of time steps in the fastest chain mode
+τmax = 300    # Simulation time
+ωmax = 10    # Maximum frequency
+lmax = 300    # Number of chain atoms tracked
+
+if (!isfile("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax).jld2"))
+    res = mkChainSystem(ωmax, τmax, lmax, d)
+    save_object("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax).jld2", res)
+end
+
 ## Prepare the ultrafine ChainSystem's by calculating the recoil term
 d = 6000     # Number of time steps in the fastest chain mode
 τmax = 20    # Simulation time
