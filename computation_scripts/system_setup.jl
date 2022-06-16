@@ -25,17 +25,30 @@ end
 
 
 ## Precompute the thermal trajectories
-τ = 10                         # Simulation time
+τmax = 50                         # Simulation time
 δ = (1 / ωmax) / d              # Time step
 n_pts = floor(τmax / δ) |> Int  # Number of time steps given t_max and δ
-n_masses = 20                  # Number of chain masses for simulating ρ0
+n_masses = 1000                  # Number of chain masses for simulating ρ0
 
-qs = range(0, π / 2, length = round(n_masses / 2) |> Integer)
-ωs = ω.(ωmax, qs)
-
+qa_s = 2 * pi .* (1:n_masses) / n_masses
+ωs = ω.(ωmax, qa_s ./ 2)
+lines(qa_s, ωs)
 # Generate random phases
-Random.seed!(150)
-ϕs = 2 * π * rand(length(qs))
+# Random.seed!(150)
+ωT = 2
+
+ζs = ζq.(ωs, ωT)
+ϕs = 2 * π * rand(n_masses)
+
+r1 = [ζH(n, δ, ζs, ϕs, ωs, 10) for n in 1:n_pts]
+r2 = [ζH(n, δ, ζs, ϕs, ωs, 11) for n in 1:n_pts]
+mean(conj(r1) .* r2)
+@time pos_corr(0, 0, 0, ωmax)
+@time pos_corr_2(0, 1, ωT, ωmax)
+
+
+
+
 # Range of temperatures
 ωTs = range(0.0, 1.0, length = 5)
 

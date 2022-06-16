@@ -70,6 +70,14 @@ function Γ(τ, ls, ωmax)
     return (res[1] * 2 / π)
 end
 
+function pos_corr(τ, l, ωT, ωmax)
+    int_fun(x) =
+        cos(2 * x * l) * coth(ω(ωmax, x) / 2 / ωT) *
+        cos(2 * π * τ * ω(ωmax, x)) / ω(ωmax, x)
+    res = quadgk(int_fun, 0, π / 2)
+    return (res[1] / π)
+end
+
 function mkChainSystem(ωmax, τ_max, lmax, d)
     δ = (1 / ωmax) / d                          # Time step in units of t_slow
     n_pts = floor(τ_max / δ) |> Int             # Number of time steps given τ_max and δ
@@ -105,21 +113,21 @@ function ζq(ωq, ωT)
     # Subtract a small number from p. The reason is that for low ωT, p ≈ 1,
     # causing issues with the rand() generator
     n = rand(Geometric(1 - exp(-ωq / ωT) - η))
-    res = √(n + 1 / 2) * √(2 / ωq)
+    res = √(n + 1 / 2) * √(1 / ωq)
     return res
 end
 
 # Homogeneous displacement of the chain atom g at time step n given a set of ωs
 # and the corresponding ζs and ϕs as a sum of normal coordinates.
-function ζH(n, δ, ζs, ϕs, ωs, qs, g)
+function ζH(n, δ, ζs, ϕs, ωs, gs)
     n_ζ = length(ζs)
-
     res =
         [
-            exp(4im * qs[x] * g) * ζs[x] * cos(2 * π * δ * n * ωs[x] + ϕs[x]) / √(n_ζ) for
+            exp.(1im * 2 * pi / n_ζ * x * gs) * ζs[x] *
+            exp(-1im * 2 * π * δ * n * ωs[x] - 1im * ϕs[x]) / √(n_ζ) for
             x = 1:n_ζ
         ] |> sum
-    return real(res)
+    return res
 end
 
 function motion_solver(
@@ -133,7 +141,7 @@ function motion_solver(
     tTraj::ThermalTrajectory,
     τ0::T where {T<:Real},
     τ::T where {T<:Real};
-    threads::Bool = false,
+    threads::Bool=false
 )
     ωmax = system.ωmax              # Maximum chain frequency
     δ = system.δ                    # Time step
@@ -164,7 +172,7 @@ function motion_solver(
         σs = zeros(length(σ0), n_pts)
         τ0_pts = min(τ0_pts, n_pts) |> Int
         Γ_mat = (2 * π * δ) .* Γ_mat[1:nChain, 1:τ0_pts]
-        Γ_mat = vcat(reverse(Γ_mat, dims = 1)[1:end-1, :], Γ_mat)
+        Γ_mat = vcat(reverse(Γ_mat, dims=1)[1:end-1, :], Γ_mat)
 
     end
     # Interaction terms
@@ -181,8 +189,8 @@ function motion_solver(
             curr = ii - 1   # Current time step index
             # Calculate the forces on all the masses
             U_pr = [dU_dρ(ρ - σ) for ρ in ρs[:, curr], σ in σs[:, curr]]
-            U_pr_chain = sum(U_pr, dims = 2) |> vec
-            U_pr_mob = -sum(U_pr, dims = 1) |> vec
+            U_pr_chain = sum(U_pr, dims=2) |> vec
+            U_pr_mob = -sum(U_pr, dims=1) |> vec
             # Find the indices of the chain masses where the force is larger than ϵ
             idx = findall(x -> abs(x) > ϵ, U_pr_chain)
             # For each of the impulses, get the appropriate slice of Γ_mat, multiply
@@ -209,8 +217,8 @@ function motion_solver(
             curr = ii - 1   # Current time step index
             # Calculate the forces on all the masses
             U_pr = [dU_dρ(ρ - σ) for ρ in ρs[:, curr], σ in σs[:, curr]]
-            U_pr_chain = sum(U_pr, dims = 2) |> vec
-            U_pr_mob = -sum(U_pr, dims = 1) |> vec
+            U_pr_chain = sum(U_pr, dims=2) |> vec
+            U_pr_mob = -sum(U_pr, dims=1) |> vec
             # Find the indices of the chain masses where the force is larger than ϵ
             idx = findall(x -> abs(x) > ϵ, U_pr_chain)
             # For each of the impulses, get the appropriate slice of Γ_mat, multiply
