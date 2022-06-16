@@ -11,13 +11,13 @@ d = 60
 n_pts = τ / δ |> floor |> Int
 nChain = 50
 
-tTraj = load_object("precomputed/rH/rH_ωmax10_d60_ωT500.0_τ200.jld2")
+tTraj = load_object("precomputed/rH/rH_ωmax10_d60_ωT0.0_τ100.jld2")
 ωT = tTraj.ωT
 
-σdot0 = [0]
+σdot0 = [30]
 mem = Inf
 
-σ0 = [225]
+σ0 = [45]
 Φ0 = [-1, 1]
 λ = [1]
 params = [(f, l) for f in Φ0, l in λ] |> vec

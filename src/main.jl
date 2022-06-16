@@ -112,10 +112,24 @@ end
 
 # Homogeneous displacement of the chain atom g at time step n given a set of ωs
 # and the corresponding ζs and ϕs as a sum of normal coordinates.
+function ζH_sin(n, δ, ζs, ϕs, ωs, qs, g)
+    n_ζ = length(ζs)
+
+    res = [sin(4 * qs[x] * g) * ζs[x] * cos(2 * π * δ * n * ωs[x] + ϕs[x]) / √(n_ζ) for x = 1:n_ζ] |> sum
+    return res
+end
+
+function ζH_cos(n, δ, ζs, ϕs, ωs, qs, g)
+    n_ζ = length(ζs)
+
+    res = [cos(4 * qs[x] * g) * ζs[x] * cos(2 * π * δ * n * ωs[x] + ϕs[x]) / √(n_ζ) for x = 1:n_ζ] |> sum
+    return res
+end
+
 function ζH(n, δ, ζs, ϕs, ωs, qs, g)
     n_ζ = length(ζs)
 
-    res = [exp(4im * qs[x] * g) * ζs[x] * cos(2 * π * δ * n * ωs[x] + ϕs[x]) / √(n_ζ) for x = 1:n_ζ] |> sum
+    res = [exp(4im * qs[x] * g) * ζs[x] * exp(-(2im * π * δ * n * ωs[x] + 1im * ϕs[x])) / √(n_ζ) for x = 1:n_ζ] |> sum
     return real(res)
 end
 
@@ -293,8 +307,7 @@ function Δ_traj(data)
     max_lattice_pos = min(data.ρs[end, 1], maximum(σs)) / data.α |> floor |> Int
     start_lattice_pos = floor(σs[1] / data.α) |> Int
 
-    idx =
-        [argmin(abs.(σs .- (n + 1 / 2) * data.α)) for n = start_lattice_pos:max_lattice_pos]
+    idx = [argmin(abs.(σs[1:end-1] .- (n + 1 / 2) * data.α)) for n = start_lattice_pos:max_lattice_pos]
 
     # Get speeds at these points and corresponding times
     σ_dots = (σs[idx.+1] - σs[idx]) ./ δ
