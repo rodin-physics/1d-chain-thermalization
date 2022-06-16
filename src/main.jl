@@ -113,21 +113,17 @@ function ζq(ωq, ωT)
     # Subtract a small number from p. The reason is that for low ωT, p ≈ 1,
     # causing issues with the rand() generator
     n = rand(Geometric(1 - exp(-ωq / ωT) - η))
-    res = √(n + 1 / 2) * √(1 / ωq)
+    res = √(n + 1 / 2) * √(2 / ωq)
     return res
 end
 
 # Homogeneous displacement of the chain atom g at time step n given a set of ωs
 # and the corresponding ζs and ϕs as a sum of normal coordinates.
-function ζH(n, δ, ζs, ϕs, ωs, gs)
+function ρH(n, δ, ζs, ϕs, ωs, gs)
     n_ζ = length(ζs)
-    res =
-        [
-            exp.(1im * 2 * pi / n_ζ * x * gs) * ζs[x] *
-            exp(-1im * 2 * π * δ * n * ωs[x] - 1im * ϕs[x]) / √(n_ζ) for
-            x = 1:n_ζ
-        ] |> sum
-    return res
+    f = transpose(exp.(-1im * (2 * π * δ * n * ωs + ϕs)) / √(n_ζ) .* ζs)
+    r = [f * exp.(1im * 2 * π / n_ζ .* (1:n_ζ) * g) for g in gs]
+    return r
 end
 
 function motion_solver(
