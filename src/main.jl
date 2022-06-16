@@ -31,12 +31,6 @@ struct ChainSystem
     Γ::Matrix{Float64}          # Response array
 end
 
-struct Impulse
-    n::Int                      # Index of the chain mass
-    τ::Int                      # Time step index
-    p::Float64                  # Impulse magnitude
-end
-
 struct ThermalTrajectory
     ωmax::Float64               # Largest mode frequency
     δ::Float64                  # Time step
