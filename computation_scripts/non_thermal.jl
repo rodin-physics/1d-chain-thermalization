@@ -6,7 +6,7 @@ include("../src/main.jl")
 σ0 = 45
 nChain = 10
 vPts = 100
-λs = [1 / 8, 1 / 4, 1 / 2, 1]
+λs = [1 / 2]
 system_slow = load_object("precomputed/systems/System_ωmax10_d60_l200.jld2")
 system_fast = load_object("precomputed/systems/System_ωmax10_d6000_l10.jld2")
 slow_res = Dict{Tuple{Float64,Float64},Tuple{Vector{Float64},Vector{Float64}}}()
@@ -33,51 +33,51 @@ par = [(λ, Φ0) for λ in λs, Φ0 in [Φ0s, -Φ0s]] |> vec
 σ_dots = range(2, 20, length = vPts)
 
 
-if (!isfile("data/non_thermal/Single_Pass_Slow_Φ$(Φ0s)_μ$(μ).jld2"))
-
-    for p in par
-        λ = p[1]
-        Φ0 = p[2]
-        res = [Δ_numeric(x, σ0, Φ0, λ, system_slow) for x in σ_dots]
-        merge!(slow_res, Dict((Φ0, λ) => (σ_dots, res)))
-    end
-
-    save_object("data/non_thermal/Single_Pass_Slow_Φ$(Φ0s)_μ$(μ).jld2", slow_res)
-end
+# if (!isfile("data/non_thermal/Single_Pass_Slow_Φ$(Φ0s)_μ$(μ).jld2"))
+#
+#     for p in par
+#         λ = p[1]
+#         Φ0 = p[2]
+#         res = [Δ_numeric(x, σ0, Φ0, λ, system_slow) for x in σ_dots]
+#         merge!(slow_res, Dict((Φ0, λ) => (σ_dots, res)))
+#     end
+#
+#     save_object("data/non_thermal/Single_Pass_Slow_Φ$(Φ0s)_μ$(μ).jld2", slow_res)
+# end
 
 # High speed
-Φ0s = 2.0
+Φ0s = 1.0
 par = [(λ, Φ0) for λ in λs, Φ0 in [Φ0s, -Φ0s]] |> vec
 σ_dots = range(20, 350, length = vPts)
 
-if (!isfile("data/non_thermal/Single_Pass_Fast_Φ$(Φ0s)_μ$(μ).jld2"))
-
-    for p in par
-        λ = p[1]
-        Φ0 = p[2]
-        res = [Δ_numeric(x, σ0, Φ0, λ, system_fast) for x in σ_dots]
-        merge!(fast_res, Dict((Φ0, λ) => (σ_dots, res)))
-    end
-
-    save_object("data/non_thermal/Single_Pass_Fast_Φ$(Φ0s)_μ$(μ).jld2", fast_res)
-end
+# if (!isfile("data/non_thermal/Single_Pass_Fast_Φ$(Φ0s)_μ$(μ).jld2"))
+#
+#     for p in par
+#         λ = p[1]
+#         Φ0 = p[2]
+#         res = [Δ_numeric(x, σ0, Φ0, λ, system_fast) for x in σ_dots]
+#         merge!(fast_res, Dict((Φ0, λ) => (σ_dots, res)))
+#     end
+#
+#     save_object("data/non_thermal/Single_Pass_Fast_Φ$(Φ0s)_μ$(μ).jld2", fast_res)
+# end
 
 ## FULL TRAJECTORY
-system = load_object("precomputed/systems/System_ωmax10_d60_l300.jld2")
+system = load_object("precomputed/systems/System_ωmax10_d60_l200.jld2")
 d = 60
-τ = 250                             # Simulation time
+τ = 100                            # Simulation time
 δ = system.δ                        # Time step
 α = 10                              # Distance between chain atoms
 μ = 1
-σ0 = [55]
+σ0 = [45]
 
 n_pts = τ / δ |> floor |> Int
-nChain = 250
+nChain = 200
 ρHs = zeros(nChain, n_pts)
 tTraj = ThermalTrajectory(system.ωmax, system.δ, ρHs, nothing)
 mem = Inf
 
-params = [(1, 1 / 2, [30]), (-1, 1 / 2, [30])]
+params = [(1, 1 / 2, [20]), (-1, 1 / 2, [20])]
 
 println("Starting Calculations")
 for param in params

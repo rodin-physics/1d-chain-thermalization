@@ -1,5 +1,7 @@
 include("../src/main.jl")
 
+rep = false
+
 # Non-thermal trajectories
 no_motion = [load_object("data/Non_Thermal/Single_σ0[45]_σdot0[20]_MemInf_λ0.5_Φ1_μ1_d60_ΩTnothing_τ100.jld2"),
 load_object("data/Non_Thermal/Single_σ0[45]_σdot0[20]_MemInf_λ0.5_Φ-1_μ1_d60_ΩTnothing_τ100.jld2")]
@@ -76,77 +78,39 @@ load_object("data/Thermal/Single_σ0[75]_σdot0[20]_MemInf_λ0.5_Φ-1_μ1_d60_Ω
 load_object("data/Thermal/Single_σ0[85]_σdot0[20]_MemInf_λ0.5_Φ-1_μ1_d60_ΩT10.0_τ100.jld2")
 ]
 
+# ROOT MEAN SQUARE DEVIATION
+function root_mse(all_data, non_thermal)
+    σs = [vec(data.σs .- data.σs[1]) for data in all_data]
+    σs_no_T = vec(non_thermal.σs .- non_thermal.σs[1])
 
-# Speed of particle over time
-function particle_speed(data)
-    σs = data.σs |> vec
-    τs = data.τs
-    δ = τs[2] - τs[1]
-    speeds = [((σs[ii+1] - σs[ii]) / δ) for ii in 1:(length(σs)-1)]
+    error = transpose(reduce(hcat, σs .- repeat([σs_no_T], length(σs))))
 
-    return (τs[2:end], speeds)
+    return (non_thermal.τs, vec(sqrt.(mean(error.^2, dims = 1))))
 end
-
 
 ## Plotting
-fig = Figure(resolution = (1800, 1600), font = "CMU Serif", fontsize = 36, figure_padding = 30)
-ax1 = Axis(fig[1,1], xlabel = L"\tau", ylabel = L"\sigma", title = "Repulsive")
-ax2 = Axis(fig[2,1], xlabel = L"\tau", ylabel = L"\sigma", title = "Attractive")
+fig = Figure(resolution = (1400, 1600), font = "CMU Serif", fontsize = 36, figure_padding = 30)
+ax1 = Axis(fig[1,1], xlabel = L"\tau", ylabel = "Root MSE")
+ax2 = Axis(fig[2,1], xlabel = L"\tau", ylabel = "Root MSE")
 
-# REPULSIVE
-for data in T10_rep
-    res = particle_speed(data)
-    lines!(ax1, res[1], res[2], linewidth = 3, color = my_vermillion, label = L"\omega_T = 10.0")
+all_rep = [T0_rep, T0p5_rep, T1_rep, T10_rep]
+all_att = [T0_att, T0p5_att, T1_att, T10_att]
+colors = [my_blue, my_green, my_red, my_vermillion]
+
+for ii in reverse(1:length(all_rep))
+    data = all_rep[ii]
+    res = root_mse(data, no_motion[1])
+    lines!(ax1, res[1], res[2], color = colors[ii] , linewidth = 5, label = L"\omega_T = %$(data[1].ωT)")
 end
 
-for data in T1_rep
-    res = particle_speed(data)
-    lines!(ax1, res[1], res[2], linewidth = 3, color = my_red, label = L"\omega_T = 1.0")
+for ii in reverse(1:length(all_att))
+    data = all_att[ii]
+    res = root_mse(data, no_motion[2])
+    lines!(ax2, res[1], res[2], color = colors[ii] , linewidth = 5, label = L"\omega_T = %$(data[1].ωT)")
 end
 
-for data in T0p5_rep
-    res = particle_speed(data)
-    lines!(ax1, res[1], res[2], linewidth = 3, color = my_green, label = L"\omega_T = 0.5")
-end
-
-for data in T0_rep
-    res = particle_speed(data)
-    lines!(ax1, res[1], res[2], linewidth = 3, color = my_blue, label = L"\omega_T = 0.0")
-end
-
-for data in [no_motion[1]]
-    res = particle_speed(data)
-    lines!(ax1, res[1], res[2], linewidth = 3, color = my_black, label = "Non-Thermal")
-end
-
-
-# ATTRACTIVE
-for data in T10_att
-    res = particle_speed(data)
-    lines!(ax2, res[1], res[2], linewidth = 3, color = my_vermillion, label = L"\omega_T = 10.0")
-end
-
-for data in T1_att
-    res = particle_speed(data)
-    lines!(ax2, res[1], res[2], linewidth = 3, color = my_red, label = L"\omega_T = 1.0")
-end
-
-for data in T0p5_att
-    res = particle_speed(data)
-    lines!(ax2, res[1], res[2], linewidth = 3, color = my_green, label = L"\omega_T = 0.5")
-end
-
-for data in T0_att
-    res = particle_speed(data)
-    lines!(ax2, res[1], res[2], linewidth = 3, color = my_blue, label = L"\omega_T = 0.0")
-end
-for data in [no_motion[2]]
-    res = particle_speed(data)
-    lines!(ax2, res[1], res[2], linewidth = 3, color = my_black, label = "Non-Thermal")
-end
-
-axislegend(ax1, labelsize = 24, position = :lb, unique = true)
-axislegend(ax2, labelsize = 24, position = :lb, unique = true)
-xlims!(ax1, 0.0, 30)
-xlims!(ax2, 0.0, 45)
+axislegend(ax1, labelsize = 25, unique = true, position = :lt)
+axislegend(ax2, labelsize = 25, unique = true, position = :lt)
+xlims!(ax1, 0, 100)
+xlims!(ax2, 0, 100)
 fig

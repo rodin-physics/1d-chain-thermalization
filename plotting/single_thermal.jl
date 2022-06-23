@@ -10,12 +10,12 @@ ax2 = Axis(fig[2, 1], xlabel = L"\tau", ylabel = L"\sigma")
 # REPULSIVE
 
 data = load_object(
-    "data/Thermal/Single_σ0[225]_σdot0[0]_MemInf_λ1_Φ1_μ1_d60_ΩT500.0_τ100.jld2",
+    "data/Thermal/Single_σ0[55]_σdot0[20]_MemInf_λ0.5_Φ1_μ1_d60_ΩT0.5_τ100.jld2",
 )
 δ = data.τs[2] - data.τs[1]
 rr = reduce(hcat, [data.ρs[ii, :] .- ii * data.α for ii = 1:size(data.ρs)[1]])
-# mx = maximum(abs.(rr))
-mx = 18.0
+mx = maximum(abs.(rr))
+
 hm = heatmap!(
     ax1,
     data.τs[1:step_size:end],
@@ -39,11 +39,11 @@ lines!(
 Colorbar(fig[1, 2], hm; label = L"\Delta\rho", width = 15, ticksize = 15, tickalign = 1)
 # ATTRACTIVE
 
-data = load_object("data/Thermal/Single_σ0[225]_σdot0[0]_MemInf_λ1_Φ-1_μ1_d60_ΩT500.0_τ100.jld2")
+data = load_object("data/Thermal/Single_σ0[55]_σdot0[20]_MemInf_λ0.5_Φ-1_μ1_d60_ΩT0.5_τ100.jld2")
 δ = data.τs[2] - data.τs[1]
 rr = reduce(hcat, [data.ρs[ii, :] .- ii * data.α for ii = 1:size(data.ρs)[1]])
 mx = maximum(abs.(rr))
-mx = 18.0
+
 hm = heatmap!(
     ax2,
     data.τs[1:step_size:end],

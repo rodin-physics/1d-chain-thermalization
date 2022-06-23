@@ -9,17 +9,17 @@ d = 60
 μ = 1
 
 n_pts = τ / δ |> floor |> Int
-nChain = 50
+nChain = 200
 
-tTraj = load_object("precomputed/rH/rH_ωmax10_d60_ωT500.0_τ200.jld2")
+tTraj = load_object("precomputed/rH/rH_ωmax10_d60_ωT0.5_τ200.jld2")
 ωT = tTraj.ωT
 
-σdot0 = [0]
+σdot0 = [20]
 mem = Inf
 
-σ0 = [225]
+σ0 = [85]
 Φ0 = [-1, 1]
-λ = [1]
+λ = [1 / 2]
 params = [(f, l) for f in Φ0, l in λ] |> vec
 println("Starting Calculations")
 Threads.@threads for param in params

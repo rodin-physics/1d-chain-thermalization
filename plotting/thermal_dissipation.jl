@@ -1,12 +1,13 @@
+## SINGLE PASS DISSIPATION FOR THERMAL MOTION
 include("../src/main.jl")
 ## System parameters
 system_slow = load_object("precomputed/systems/System_ωmax10_d60_l200.jld2")
 # system_fast = load_object("precomputed/systems/System_ωmax10_d6000_l20.jld2")
 filenames = ["precomputed/rH/rH_ωmax10_d60_ωT0.0_τ200.jld2",
-             "precomputed/rH/rH_ωmax10_d60_ωT1.0_τ200.jld2",
-             "precomputed/rH/rH_ωmax10_d60_ωT5.0_τ200.jld2",
-             "precomputed/rH/rH_ωmax10_d60_ωT10.0_τ200.jld2",
-             "precomputed/rH/rH_ωmax10_d60_ωT20.0_τ200.jld2"
+             # "precomputed/rH/rH_ωmax10_d60_ωT1.0_τ200.jld2",
+             # "precomputed/rH/rH_ωmax10_d60_ωT5.0_τ200.jld2",
+             # "precomputed/rH/rH_ωmax10_d60_ωT10.0_τ200.jld2",
+             # "precomputed/rH/rH_ωmax10_d60_ωT20.0_τ200.jld2"
              ]
 
 α = 10                  # Distance between chain atoms
@@ -59,9 +60,11 @@ function Δ_numeric(σ_dot, σ0, Φ0, λ, system, tTraj)
     return kinetic
 end
 
-## Plotting
+
 d = 60
 Φ0 = 2.0
+
+## Plotting over energy range
 σ_dots = range(20, 350, length = vPts)
 
 fig = Figure(resolution = (1200, 800), font = "CMU Serif", fontsize = 36, yscale = Makie.pseudolog10)
@@ -92,3 +95,20 @@ axislegend(ax1, labelsize = 20)
 CairoMakie.xlims!(0.0, 350)
 # save("Fast_system.pdf", fig)
 fig
+
+## Plotting range of Delta+σ0 for single energy
+# speed = 100
+# σ0s = range(2.5, 100.5, step = 1.0) .* α
+# tTraj = load_object("precomputed/rH/rH_ωmax10_d60_ωT0.0_τ200.jld2")
+#
+# fig2 = Figure(resolution = (1200, 800), font = "CMU Serif", fontsize = 36)
+# ax2 = Axis(fig2[1,1], xlabel = L"\sigma_0", ylabel = L"\Delta", title = L"\dot{\sigma}_0 = %$speed")
+#
+# res_att = [Δ_numeric(speed, x, -Φ0, λ, system_slow, tTraj) for x in σ0s]
+# res_rep = [Δ_numeric(speed, x, Φ0, λ, system_slow, tTraj) for x in σ0s]
+#
+# scatter!(ax2, (σ0s), (res_att), color = my_red, marker = :hline, markersize = 15)
+# scatter!(ax2, (σ0s), (res_rep), color = my_blue, marker = :cross, markersize = 15)
+#
+# hlines!(ax2, [Δ_analytic(speed, Φ0, λ, system_slow.ωmax), mean(res_att), mean(res_rep)], color = my_black, linestyle = :dashdot)
+# fig2

@@ -16,12 +16,14 @@ using ToeplitzMatrices
 ϵ = 1e-20
 ## Friendly colors
 my_red = colorant"rgba(204, 121, 167, 0.75)"
+my_red2 = colorant"rgb(204, 121, 167)"
 my_vermillion = colorant"rgba(213, 94, 0, 0.75)"
 my_orange = colorant"rgba(230, 159, 0, 0.75)"
 my_yellow = colorant"rgba(240, 228, 66, 0.75)"
 my_green = colorant"rgba(0, 158, 115, 0.75)"
 my_sky = colorant"rgba(86, 180, 233, 0.75)"
 my_blue = colorant"rgba(0, 114, 178, 0.75)"
+my_blue2 = colorant"rgb(0, 114, 178)"
 my_black = colorant"rgba(0, 0, 0, 0.75)"
 
 ## Types
@@ -70,6 +72,7 @@ function Γ(τ, ls, ωmax)
     return (res[1] * 2 / π)
 end
 
+# Correlation function
 function pos_corr(τ, l, ωT, ωmax)
     int_fun(x) =
         cos(2 * x * l) * coth(ω(ωmax, x) / 2 / ωT) *
@@ -113,21 +116,17 @@ function ζq(ωq, ωT)
     # Subtract a small number from p. The reason is that for low ωT, p ≈ 1,
     # causing issues with the rand() generator
     n = rand(Geometric(1 - exp(-ωq / ωT) - η))
-    res = √(n + 1 / 2) * √(1 / ωq)
+    res = √(n + 1 / 2) * √(2 / ωq)
     return res
 end
 
 # Homogeneous displacement of the chain atom g at time step n given a set of ωs
 # and the corresponding ζs and ϕs as a sum of normal coordinates.
-function ζH(n, δ, ζs, ϕs, ωs, gs)
+function ρH(n, δ, ζs, ϕs, ωs, gs)
     n_ζ = length(ζs)
-    res =
-        [
-            exp.(1im * 2 * pi / n_ζ * x * gs) * ζs[x] *
-            exp(-1im * 2 * π * δ * n * ωs[x] - 1im * ϕs[x]) / √(n_ζ) for
-            x = 1:n_ζ
-        ] |> sum
-    return res
+    f = transpose(exp.(-1im * (2 * π * δ * n * ωs + ϕs)) / √(n_ζ) .* ζs)
+    r = [f * exp.(1im * 2 * π / n_ζ .* (1:n_ζ) * g) for g in gs]
+    return r
 end
 
 function motion_solver(
