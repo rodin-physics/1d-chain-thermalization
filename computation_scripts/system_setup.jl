@@ -23,6 +23,17 @@ if (!isfile("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax).jld2"))
     save_object("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax).jld2", res)
 end
 
+## Prepare a fine ChainSystem's by calculating the recoil term
+d = 1000     # Number of time steps in the fastest chain mode
+τmax = 20    # Simulation time
+ωmax = 10    # Maximum frequency
+lmax = 300   # Number of chain atoms tracked
+
+if (!isfile("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax).jld2"))
+    res = mkChainSystem(ωmax, τmax, lmax, d)
+    save_object("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax).jld2", res)
+end
+
 
 ## Precompute the thermal trajectories
 # τmax = 50                         # Simulation time

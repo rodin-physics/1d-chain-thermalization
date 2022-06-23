@@ -48,6 +48,7 @@ struct SystemSolution
     λ::Float64                  # Standard deviation of the potential
     σs::Matrix{Float64}         # Positions of mobile atoms
     ρs::Matrix{Float64}         # Positions of the chain atoms
+    bias::Float64               # Applied bias
     ωT::Union{Nothing,Float64}  # Temperature
 end
 
@@ -60,7 +61,7 @@ end
 # Chain recoil function
 function Γ(τ, ls, ωmax)
     int_fun(x) = cos.(2 * x * ls) * sin(2 * π * τ * ω(ωmax, x)) / ω(ωmax, x)
-    res = quadgk(int_fun, 0, π / 2)
+    res = quadgk(int_fun, 0, π / 2, atol=1e-8)
     return (res[1] * 2 / π)
 end
 
@@ -131,7 +132,8 @@ function motion_solver(
     tTraj::ThermalTrajectory,
     τ0::T where {T<:Real},
     τ::T where {T<:Real};
-    threads::Bool=false
+    threads::Bool=false,
+    bias::T where {T<:Real} = 0
 )
     ωmax = system.ωmax              # Maximum chain frequency
     δ = system.δ                    # Time step
@@ -140,6 +142,7 @@ function motion_solver(
     τs = δ .* (1:n_pts) |> collect  # Times
     nChain = size(tTraj.ρHs)[1]     # Number of chain particles for which the homogeneous motion is available
     τ0_pts = max(floor(τ0 / δ), 1)  # Memory time points
+    F_bias = bias / α               # Force due to the bias
     # Even if τ0 == 0, we have to keep a single time point to make sure arrays work.
     # For zero memory, the recoil contribution is dropped (see line 156)
 
@@ -218,11 +221,12 @@ function motion_solver(
                 ρs_upd = view(ρs, :, nxt:nxt+size(Γ_curr)[2]-1)
                 ρs_upd .-= Γ_curr .* U_pr_chain[n]
             end
-            σs[:, nxt] = -(2 * π * δ)^2 / μ .* U_pr_mob + 2 .* σs[:, curr] - σs[:, curr-1]
+            σs[:, nxt] = -(2 * π * δ)^2 / μ .* U_pr_mob + 2 .* σs[:, curr] - σs[:, curr-1] +
+                         (2 * π * δ)^2 / μ * F_bias .* ones(length(σ0))
         end
     end
 
-    return SystemSolution(ωmax, μ, τs, τ0, α, Φ0, λ, σs, ρs, tTraj.ωT)
+    return SystemSolution(ωmax, μ, τs, τ0, α, Φ0, λ, σs, ρs, bias, tTraj.ωT)
 end
 
 function Δ_analytic(v, Φ, λ, Ω)

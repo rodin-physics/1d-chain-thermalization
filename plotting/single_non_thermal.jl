@@ -120,7 +120,7 @@ ax2 = Axis(fig[2, 1], xlabel = L"\tau", ylabel = L"\sigma")
 # REPULSIVE
 
 data = load_object(
-    "data/non_thermal/Single_σ0[55]_σdot0[30]_MemInf_λ0.5_Φ1_μ1_d60_ΩTnothing_τ250.jld2",
+    "data/non_thermal/Single_σ0[300]_σdot0[300]_MemInf_λ0.5_Φ1_μ1_d60_ΩTnothing_τ10.jld2",
 )
 δ = data.τs[2] - data.τs[1]
 τ_max = 105
@@ -128,7 +128,7 @@ idx = findall(data.τs .< τ_max)
 τs = data.τs[idx]
 rr = reduce(hcat, [data.ρs[ii, idx] .- ii * data.α for ii = 1:size(data.ρs)[1]])
 # mx = maximum(abs.(rr)) / 1
-mx = 0.03
+mx = 0.001
 hm = heatmap!(
     ax1,
     τs[1:step_size:end],
@@ -138,7 +138,7 @@ hm = heatmap!(
     colorrange = (-mx, mx),
 )
 lines!(ax1, data.τs, [x[1] for x in data.σs] |> vec, color = my_black, linewidth = 5)
-xlims!(ax1, (0, 105))
+xlims!(ax1, (0, 10))
 ylims!(ax1, (0, 2500))
 
 lines!(
@@ -150,39 +150,39 @@ lines!(
     linestyle = :dash,
 )
 Colorbar(fig[1, 2], hm; label = L"\Delta\rho", width = 15, ticksize = 15, tickalign = 1)
-# ATTRACTIVE
+# # ATTRACTIVE
 
-data = load_object(
-    "data/non_thermal/Single_σ0[55]_σdot0[30]_MemInf_λ0.5_Φ-1_μ1_d60_ΩTnothing_τ250.jld2",
-)
-δ = data.τs[2] - data.τs[1]
-τ_max = 105
-idx = findall(data.τs .< τ_max)
-τs = data.τs[idx]
-rr = reduce(hcat, [data.ρs[ii, idx] .- ii * data.α for ii = 1:size(data.ρs)[1]])
-mx = 0.03
-# mx = maximum(abs.(rr)) / 3
-hm = heatmap!(
-    ax2,
-    τs[1:step_size:end],
-    collect(1:size(data.ρs)[1]) .* data.α,
-    rr[1:step_size:end, :],
-    colormap = :RdBu,
-    colorrange = (-mx, mx),
-)
-lines!(ax2, data.τs, [x[1] for x in data.σs] |> vec, color = my_black, linewidth = 5)
-xlims!(ax2, (0, 105))
-ylims!(ax2, (0, 2500))
+# data = load_object(
+#     "data/non_thermal/Single_σ0[55]_σdot0[30]_MemInf_λ0.5_Φ-1_μ1_d60_ΩTnothing_τ250.jld2",
+# )
+# δ = data.τs[2] - data.τs[1]
+# τ_max = 105
+# idx = findall(data.τs .< τ_max)
+# τs = data.τs[idx]
+# rr = reduce(hcat, [data.ρs[ii, idx] .- ii * data.α for ii = 1:size(data.ρs)[1]])
+# mx = 0.03
+# # mx = maximum(abs.(rr)) / 3
+# hm = heatmap!(
+#     ax2,
+#     τs[1:step_size:end],
+#     collect(1:size(data.ρs)[1]) .* data.α,
+#     rr[1:step_size:end, :],
+#     colormap = :RdBu,
+#     colorrange = (-mx, mx),
+# )
+# lines!(ax2, data.τs, [x[1] for x in data.σs] |> vec, color = my_black, linewidth = 5)
+# xlims!(ax2, (0, 105))
+# ylims!(ax2, (0, 2500))
 
-lines!(
-    ax2,
-    0:0.1:10,
-    π * 10 * 9 * (0:0.1:10) .+ data.σs[1][1],
-    color = my_black,
-    linewidth = 4,
-    linestyle = :dash,
-)
-Colorbar(fig[2, 2], hm; label = L"\Delta\rho", width = 15, ticksize = 15, tickalign = 1)
+# lines!(
+#     ax2,
+#     0:0.1:10,
+#     π * 10 * 9 * (0:0.1:10) .+ data.σs[1][1],
+#     color = my_black,
+#     linewidth = 4,
+#     linestyle = :dash,
+# )
+# Colorbar(fig[2, 2], hm; label = L"\Delta\rho", width = 15, ticksize = 15, tickalign = 1)
 fig
 save("General_Example.pdf", fig)
 
