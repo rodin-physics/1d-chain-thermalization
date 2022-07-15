@@ -10,6 +10,7 @@ using SpecialFunctions
 using Statistics
 using StatsBase
 using ToeplitzMatrices
+using Roots
 
 ## Parameters
 η = 1e-12                       # Small number
@@ -202,7 +203,8 @@ function motion_solver(
                         view(Γ_mat, nChain-n+1:2*nChain-n, step_alloc[t]) .* U_pr_chain[n]
                 end
             end
-            σs[:, nxt] = -(2 * π * δ)^2 / μ .* U_pr_mob + 2 .* σs[:, curr] - σs[:, curr-1]
+            σs[:, nxt] = -(2 * π * δ)^2 / μ .* U_pr_mob + 2 .* σs[:, curr] - σs[:, curr-1] +
+                         (2 * π * δ)^2 / μ * F_bias .* ones(length(σ0))
         end
     else
         @showprogress for ii = 3:n_pts
@@ -263,5 +265,58 @@ function Δ_traj(data)
     σ_dots = σ_dots[idx]
     Δs = KE[1:end-1] - KE[2:end]
     return (σ_dots[1:end-1], Δs)
+
+end
+
+function Δ_traj2(data)
+    δ = data.τs[2] - data.τs[1]
+    σs = data.σs |> vec
+    ρs = data.ρs
+
+    mod_val = mod(σs[1], data.α)
+    chain_idx = searchsortedlast(ρs[:,1], σs[1])
+    max_lattice_pos = min(data.ρs[end, 1], maximum(σs)) / data.α |> floor |> Int
+
+    idx = [argmin(abs.(σs .- (ρs[n, :] .+ (0.5 * data.α)))) for n in chain_idx:max_lattice_pos]
+    idx = filter(x -> x <= length(σs) - 1, idx)
+
+    # Get speeds at these points and corresponding times
+    σ_dots = (σs[idx.+1] - σs[idx]) ./ δ
+    τs = data.τs[idx]
+
+    # Get the kinetic energy
+    KE = 0.5 * data.μ * (σ_dots ./ 2 ./ π) .^ 2
+    idx = findall(x -> x > data.Φ, KE)
+    KE = KE[idx]
+    σ_dots = σ_dots[idx]
+    Δs = KE[1:end-1] - KE[2:end]
+    return (σ_dots[1:end-1], Δs)
+end
+
+
+function Δ_transport(v, Φ, λ, Ω, α)
+    sols = find_zeros(x -> ω(Ω, π*x) + x*(v/α), -Ω*α/v, 0, no_pts = 55)
+
+    ωprime(x) = π*sin(π*x)*cos(π*x)*(Ω^2 -1)/ω(Ω, π*x)
+
+    vals = [(4*π^2*λ*Φ*ω(Ω, π*sol)/v^2)^2 * π * exp(-2*π^2*λ^2*(ω(Ω, π*sol)^2)^2/v^2) * (1 / abs(α*ωprime(sol)/v + 1)) for sol in sols]
+
+    return isempty(vals) ? 0 : sum(vals)
+end
+
+
+Φ(x) = Φ0 * sqrt(2 * π) * λ * exp(-x^2 * λ^2 / 2);
+
+Ω(x) = ω(ωmax, pi * x)
+
+Ω_prime(x) = π * sin(2 * π * x) * (ωmax^2 - 1) / 2 / ω(ωmax, pi * x)
+
+function Δ_drift(α, σDot)
+
+z = find_zeros(x -> Ω(x) + x * σDot / α, (-ωmax * α / σDot, 0))
+
+return sum([0.5 * ((2pi / σDot)^2 * Ω(x) * Φ(2pi * Ω(x) / σDot))^2 / abs(α * Ω_prime(x) / σDot + 1) for x in z])
+
+# return sum([0.5 * ((2pi / σDot)^2 * Ω(x) * Φ(2pi * Ω(x) / σDot))^2 / abs(α * Ω_prime(x) / σDot + 1) for x in z])
 
 end
