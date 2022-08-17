@@ -134,7 +134,8 @@ function motion_solver(
     τ0::T where {T<:Real},
     τ::T where {T<:Real};
     threads::Bool=false,
-    bias::T where {T<:Real} = 0
+    bias::T where {T<:Real} = 0,
+    hold::T where {T<:Real} = 0
 )
     ωmax = system.ωmax              # Maximum chain frequency
     δ = system.δ                    # Time step
@@ -176,6 +177,7 @@ function motion_solver(
     ## Initial values
     σs[:, 1] = σ0
     σs[:, 2] = σ0 + δ .* σ_dot0
+    mass_flag = false
 
     if threads == true
         @showprogress for ii = 3:n_pts
@@ -203,8 +205,14 @@ function motion_solver(
                         view(Γ_mat, nChain-n+1:2*nChain-n, step_alloc[t]) .* U_pr_chain[n]
                 end
             end
-            σs[:, nxt] = -(2 * π * δ)^2 / μ .* U_pr_mob + 2 .* σs[:, curr] - σs[:, curr-1] +
+
+            if hold == 0 || (τs[ii] >= hold && isapprox(mod.(σs[:, curr], α), repeat([α/2], length(σs[:, curr])), rtol = 1e-3)) || mass_flag == true
+                mass_flag = true
+                σs[:, nxt] = -(2 * π * δ)^2 / μ .* U_pr_mob + 2 .* σs[:, curr] - σs[:, curr-1] +
                          (2 * π * δ)^2 / μ * F_bias .* ones(length(σ0))
+            else
+                σs[:, nxt] = 2 .* σs[:, curr] - σs[:, curr-1]
+            end
         end
     else
         @showprogress for ii = 3:n_pts
@@ -223,8 +231,14 @@ function motion_solver(
                 ρs_upd = view(ρs, :, nxt:nxt+size(Γ_curr)[2]-1)
                 ρs_upd .-= Γ_curr .* U_pr_chain[n]
             end
-            σs[:, nxt] = -(2 * π * δ)^2 / μ .* U_pr_mob + 2 .* σs[:, curr] - σs[:, curr-1] +
+
+            if hold == 0 || (τs[ii] >= hold && isapprox(mod.(σs[:, curr], α), repeat([α/2], length(σs[:, curr])), rtol = 0.01)) || mass_flag == true
+                mass_flag = true
+                σs[:, nxt] = -(2 * π * δ)^2 / μ .* U_pr_mob + 2 .* σs[:, curr] - σs[:, curr-1] +
                          (2 * π * δ)^2 / μ * F_bias .* ones(length(σ0))
+            else
+                σs[:, nxt] = 2 .* σs[:, curr] - σs[:, curr-1]
+            end
         end
     end
 
@@ -304,19 +318,28 @@ function Δ_transport(v, Φ, λ, Ω, α)
     return isempty(vals) ? 0 : sum(vals)
 end
 
+function Δ_transport_smeared(v, Φ, λ, Ω, α)
+    v_ext = sqrt(v^2 - (8*π^2*Φ))
+    v_range = range(min(v, v_ext), max(v, v_ext), length = 50)
+    vals = 0
+    for speed in v_range
+        sols = find_zeros(x -> ω(Ω, π*x) + x*(speed/α), -Ω*α/speed, 0, no_pts = 55)
+        ωprime(x) = π*sin(π*x)*cos(π*x)*(Ω^2 -1)/ω(Ω, π*x)
 
-Φ(x) = Φ0 * sqrt(2 * π) * λ * exp(-x^2 * λ^2 / 2);
+        for sol in sols
+            vals += (4*π^2*λ*Φ*ω(Ω, π*sol)/speed^2)^2 * π * exp(-2*π^2*λ^2*(ω(Ω, π*sol)^2)^2/speed^2) * (1 / abs(α*ωprime(sol)/speed + 1))
+        end
+    end
 
-Ω(x) = ω(ωmax, pi * x)
+    return vals
+end
 
-Ω_prime(x) = π * sin(2 * π * x) * (ωmax^2 - 1) / 2 / ω(ωmax, pi * x)
+# Speed of particle over time
+function particle_speed(data)
+    σs = data.σs |> vec
+    τs = data.τs
+    δ = τs[2] - τs[1]
+    speeds = [((σs[ii+1] - σs[ii]) / δ) for ii in 1:(length(σs)-1)]
 
-function Δ_drift(α, σDot)
-
-z = find_zeros(x -> Ω(x) + x * σDot / α, (-ωmax * α / σDot, 0))
-
-return sum([0.5 * ((2pi / σDot)^2 * Ω(x) * Φ(2pi * Ω(x) / σDot))^2 / abs(α * Ω_prime(x) / σDot + 1) for x in z])
-
-# return sum([0.5 * ((2pi / σDot)^2 * Ω(x) * Φ(2pi * Ω(x) / σDot))^2 / abs(α * Ω_prime(x) / σDot + 1) for x in z])
-
+    return (τs[2:end], speeds)
 end

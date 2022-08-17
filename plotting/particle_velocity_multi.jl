@@ -1,8 +1,8 @@
 include("../src/main.jl")
 using Peaks
-# speed = 45
-bias = 0.21465496799193154
-# bias = 16.0
+α = 40
+Φ0 = 8.0
+bias = 0.1
 
 # Speed of particle over time
 function particle_speed(data)
@@ -14,56 +14,59 @@ function particle_speed(data)
     return (τs[2:end], speeds)
 end
 
+
 ## Plotting
 
-fig = Figure(resolution = (1800, 1200), font = "CMU Serif", fontsize = 34, figure_padding = 30)
-ax1 = Axis(fig[1,1], xlabel = L"\tau", ylabel = L"\dot{\sigma}", xticks = 0:60:600, title = "Repulsive")
-ax2 = Axis(fig[1,2], xlabel = L"\tau", ylabel = L"\dot{\sigma}", xticks = 0:60:600, title = "Attractive")
+fig = Figure(resolution = (1800, 1200), font = "CMU Serif", fontsize = 32, figure_padding = 30)
+ax1 = Axis(fig[1,1], xlabel = L"\tau", ylabel = L"\dot{\sigma}", xticks = 0:60:750, title = "Repulsive")
+ax2 = Axis(fig[1,2], xlabel = L"\tau", ylabel = L"\dot{\sigma}", xticks = 0:60:750, title = "Attractive")
 
-segment = 30 .* range(0, 20, step = 1)
+# Vertical line solutions
+hlines!(ax1, [α/n for n in 1:5], linewidth = 3, linestyle = :dash, color = my_black, label = "Vertical solutions")
+hlines!(ax2, [α/n for n in 1:5], linewidth = 3, linestyle = :dash, color = my_black, label = "Vertical solutions")
 
-final_τ = 0
-for speed in [29, 35, 45, 50]
-    data_rep = [load_object("Data/Non_Thermal_Multi/$(n)_Single_σ0[220]_σdot0[$(speed)]_MemInf_λ4_Φ8_μ1_d60_bias$(bias)_ΩTnothing_τ30.jld2") for n in 1:15]
+# # Second solution set
+# hlines!(ax1, [10.62, 15.145, 22.966, 40.528], linewidth = 3, color = my_blue, linestyle = :dash, label = "Graphical solutions")
+# hlines!(ax2, [10.62, 15.145, 22.966, 40.528], linewidth = 3, color = my_blue, linestyle = :dash, label = "Graphical solutions")
 
-    data_att = [load_object("Data/Non_Thermal_Multi/$(n)_Single_σ0[220]_σdot0[$(speed)]_MemInf_λ4_Φ-8_μ1_d60_bias$(bias)_ΩTnothing_τ30.jld2") for n in 1:15]
+# # Minimum speeds
+hlines!(ax1, [sqrt(8*Φ0*π^2)], linewidth = 4, color = my_red, linestyle = :dash, label = "Minimum speed")
+hlines!(ax2, [1.9], linewidth = 4, color = my_red, linestyle = :dash, label = "Minimum speed")
 
-    final_τ = 0
-    for ii in 1:length(data_rep)
-        (τs, speeds) = particle_speed(data_rep[ii])
-        # lines!(ax1, τs .+ final_τ, speeds, linewidth = 3, color = my_vermillion)
+# Read in full trajectories
+filenames = filter(x -> first(x) !== '.', readdir(joinpath(pwd(), "data/Non_Thermal/")))
 
+data = [load_object(joinpath(pwd(), "data/Non_Thermal/", x)) for x in filenames]
+data_rep = filter(x -> x.Φ == Φ0 && x.α == α && x.bias == bias, data)
+data_att = filter(x -> x.Φ == -Φ0 && x.α == α && x.bias == bias, data)
+
+for ii in 1:length(data_rep)
+    (τs, speeds) = particle_speed(data_rep[ii])
+    # lines!(ax1, τs, speeds, linewidth = 3, color = my_vermillion)
+    if all(speeds.>=0)
         pks, vals = findmaxima(speeds)
-        lines!(ax1, τs[vcat([1], pks)] .+ final_τ, vcat(speeds[1], vals), linewidth = 4, color = my_vermillion)
-        final_τ += τs[pks[end]]
-    end
-
-    final_τ = 0
-    for ii in 1:length(data_att)
-        (τs, speeds) = particle_speed(data_att[ii])
-        # lines!(ax2, τs .+ final_τ, speeds, linewidth = 3, color = my_blue)
-
-        pks, vals = findminima(speeds)
-        lines!(ax2, τs[vcat([1], pks)] .+ final_τ, vcat(speeds[1], vals), linewidth = 4, color = my_blue)
-
-        final_τ += τs[pks[end]]
+        lines!(ax1, τs[pks], vals, linewidth = 4, color = my_vermillion)
     end
 
 end
 
-# hlines!(ax1, [11.5, 17.2, 28.1, 44.4], linewidth = 3, color = my_black, linestyle = :dash)
-# hlines!(ax1, [α/n for n in 1:5], linewidth = 3, linestyle = :dash, color = my_blue)
-#
-# hlines!(ax2, [11.5, 17.2, 28.1, 44.4], linewidth = 3, color = my_black, linestyle = :dash)
-# hlines!(ax2, [α/n for n in 1:5], linewidth = 3, linestyle = :dash, color = my_blue)
+for ii in 1:length(data_att)
+    (τs, speeds) = particle_speed(data_att[ii])
+    # lines!(ax2, τs, speeds, linewidth = 3, color = my_blue)
 
-xlims!(ax1, 0.0, 450)
-xlims!(ax2, 0.0, 450)
+    if all(speeds.>=0)
+        pks, vals = findminima(speeds)
+        lines!(ax2, τs[pks], vals, linewidth = 4, color = my_blue)
+    end
 
-ylims!(ax1, 0.0, 60)
-ylims!(ax2, 0, 60)
+end
 
-# xlims!(ax2, 0, 100)
-# ylims!(ax2, 0, 50)
-# axislegend(ax1, labelsize = 25, position = :lb, unique = true)
-fig
+xlims!(ax1, 0.0, 210)
+xlims!(ax2, 0.0, 210)
+
+ylims!(ax1, 0.0, nothing)
+ylims!(ax2, 0, nothing)
+
+axislegend(ax1, labelsize = 30, position = :rb, unique = true)
+axislegend(ax2, labelsize = 30, position = :rb, unique = true)
+save("Bias$(bias)_Phi$(Φ0)_alpha$(α)_InfMass.pdf", fig)

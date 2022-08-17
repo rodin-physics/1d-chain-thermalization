@@ -1,10 +1,10 @@
 include("../src/main.jl")
-
+using Peaks
 
 data_rep = load_object(
-    "data/non_thermal/Single_σ0[200]_σdot0[50]_MemInf_λ4_Φ8_μ1_d60_bias0.0_ΩTnothing_τ100.jld2")
+    "data/non_thermal/Single_sigma0[220]_sigmadot0[42]_MemInf_lambda4_Phi8_mu1_d60_bias0.2_omegaTnothing_tau200.jld2")
 
-data_att = load_object("data/Non_Thermal/Single_σ0[220]_σdot0[50]_MemInf_λ4_Φ-8_μ1_d60_bias0.0_ΩTnothing_τ100.jld2")
+data_att = load_object("data/Non_Thermal/Single_sigma0[220]_sigmadot0[42]_MemInf_lambda4_Phi-8_mu1_d60_bias0.2_omegaTnothing_tau200.jld2")
 
 # Speed of particle over time
 function particle_speed(data)
@@ -15,33 +15,34 @@ function particle_speed(data)
 
     return (τs[2:end], speeds)
 end
+(τs_rep, speeds_rep) = particle_speed(data_rep)
+(τs_att, speeds_att) = particle_speed(data_att)
 
-σs_rep = data_rep.σs |> vec
-τs_rep = data_rep.τs
-δ_rep = τs_rep[2] - τs_rep[1]
-
-σs_att = data_att.σs |> vec
-τs_att = data_att.τs
-δ_att = τs_att[2] - τs_att[1]
-
-speeds_rep = [((σs_rep[ii+1] - σs_rep[ii]) / δ_rep) for ii in 1:(length(σs_rep)-1)]
-speeds_att = [((σs_att[ii+1] - σs_att[ii]) / δ_att) for ii in 1:(length(σs_att)-1)]
 
 fig = Figure(resolution = (1200, 800), font = "CMU Serif", fontsize = 34, figure_padding = 30)
 ax1 = Axis(fig[1,1], xlabel = L"\tau", ylabel = L"\dot{\sigma}")
 # ax2 = Axis(fig[2,1], xlabel = L"\tau", ylabel = L"\dot{\sigma}", title = "Attractive")
 
-hlines!(ax1, [speeds_rep[1]], linewidth = 3, color = my_black, linestyle = :dash, label = "Initial Speed")
-lines!(ax1, τs_rep[2:end], speeds_rep, linewidth = 3, color = my_vermillion, label = "Repulsive")
+# hlines!(ax1, speeds_att[1], linewidth = 3, color = my_black, linestyle = :dash)
+lines!(ax1, τs_att, speeds_att, linewidth = 3, color = my_blue, label = "Attractive")
 
-hlines!(ax1, [speeds_att[1]], linewidth = 3, color = my_black, linestyle = :dash)
-lines!(ax1, τs_att[2:end], speeds_att, linewidth = 3, color = my_blue, label = "Attractive")
-# hlines!(ax2, resonance_speed.(3:12))
+# vlines!(ax1,  τs_att[findfirst(x -> isapprox(x,20.0, rtol = 1e-8) == false, speeds_att)])
 
-xlims!(ax1, 0, 1)
-ylims!(ax1, 0, nothing)
+# hlines!(ax1, speeds_rep[1], linewidth = 3, color = my_black, linestyle = :dash, label = "Initial Speed")
+lines!(ax1, τs_rep, speeds_rep, linewidth = 3, color = my_vermillion, label = "Repulsive")
+# pks, vals = findminima(speeds_att)
+# lines!(ax1, τs_att[pks], vals, linewidth = 4, color = my_blue)
+# pks, vals = findmaxima(speeds_rep)
+# lines!(ax1, τs_rep[pks], vals, linewidth = 4, color = my_vermillion)
+hlines!(ax1, [data_rep.α/n for n in 1:10], linewidth = 2, linestyle = :dash, color = :black)
+hlines!(ax1, [37.8, 41.79], linewidth = 2, linestyle = :dash, color = :black)
 
-# xlims!(ax2, 0, 100)
+# hlines!(ax1, resonance_speed.(1))
+
+xlims!(ax1, 180, 182)
+ylims!(ax1, 41.5, 42)
+
+# xlims!(ax2, 0, 30)
 # ylims!(ax2, 0, 50)
 axislegend(ax1, labelsize = 25, position = :lb)
 fig
