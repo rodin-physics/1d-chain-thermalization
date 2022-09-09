@@ -5,8 +5,7 @@ include("../src/main.jl")
 μ = 1
 nChain = 10
 ωmax = 10
-Φ0s = [0.1, 0.5, 1.0, 10.0]
-Φ0s2 = [20.0, 30.0, 40.0, 50.0]
+Φ0 = 2.0
 λ = 4.0
 system = load_object("precomputed/systems/System_ωmax10_d60_l200.jld2")
 system2 = load_object("precomputed/systems/System_ωmax10_d6000_l20.jld2")
@@ -49,55 +48,62 @@ function Δ_numeric2(σ_dot, σ0, Φ0, λ, system)
     return res
 end
 
-
-start_frac_rep = 0.5
-start_frac_att = 0.5
-colours = [my_vermillion, my_orange, my_green, my_sky]
-
 ## Plotting Delta
-fig = Figure(resolution=(1600, 800), font="CMU Serif", fontsize=24, figure_padding = 30)
-ax1 = Axis(fig[1, 1], xlabel=L"\dot{\sigma}", ylabel=L"\Delta", yscale = log10)
-ax2 = Axis(fig[1, 2], xlabel=L"\dot{\sigma}", ylabel=L"\Delta", yscale = log10)
+fig = Figure(resolution=(1200, 800), font="CMU Serif", fontsize=24, figure_padding = 30)
+ax1 = Axis(fig[1, 1], xlabel=L"\dot{\sigma}_0", ylabel=L"\Delta")
+
+vlines!(ax1, [sqrt(8*Φ0*π^2)], linestyle = :dash, color = my_red, linewidth = 3, label = "Min. Speed")
 
 # Analytic Δ
-# lines!(ax1, xs2, Δnews, color = my_black, label = L"\Delta_\mathrm{transport}")
+xs = range(7.5, 80, step = 1.0)
+Δs = Δ_analytic.(xs, Φ0, λ, ωmax)
+lines!(ax1, xs, Δs, color = my_green, label = "Analytic", linewidth = 4)
+
+# Numeric losses
+xs = range(ceil(√(8*π^2*Φ0)), 60, step = 0.5)
+xs2 = range(1, 60, step = 0.5)
+numeric_rep = map(x -> Δ_numeric(x, 5.5 * α, Φ0, λ, system), xs)
+# numeric_att = map(x -> Δ_numeric(x, 5.5 * α, -Φ0, λ, system), xs2)
+scatter!(ax1, xs, numeric_rep, color = my_vermillion, markersize = 12, label = "Repulsive")
+scatter!(ax1, xs2, numeric_att, color = my_blue, markersize = 12, label = "Attractive")
+
 
 # Numeric
-for Φ0 in Φ0s
-    xs = range(ceil(√(8*π^2*Φ0)), 80, step = 1.0)
-    xs2 = range(7, 80, step = 1.0)
-    xs3 = range(7.5, 80, step = 1.0)
+# for Φ0 in Φ0s
+#     xs = range(ceil(√(8*π^2*Φ0)), 80, step = 2.0)
+#     xs2 = range(7, 80, step = 2.0)
+#     xs3 = range(7.5, 80, step = 1.0)
+#
+#     Δs = Δ_analytic.(xs3, Φ0, λ, ωmax)
+#     lines!(ax1, xs3, Δs, color = colours[findfirst(isequal(Φ0), Φ0s)], linewidth = 3, label = L"\Phi_0 = %$(Φ0)")
+#
+#     numeric_rep = map(x -> Δ_numeric(x, (5.0 + start_frac_rep) * α, Φ0, λ, system), xs)
+#     numeric_att = map(x -> Δ_numeric(x, (5.0 + start_frac_att) * α, -Φ0, λ, system), xs2)
+#
+#     scatter!(ax1, xs, numeric_rep, color = colours[findfirst(isequal(Φ0), Φ0s)], markersize = 16, marker = :cross)
+#
+#     scatter!(ax1, xs2, numeric_att, color = colours[findfirst(isequal(Φ0), Φ0s)], markersize = 16, marker = :hline)
+# end
 
-    Δs = Δ_analytic.(xs3, Φ0, λ, ωmax)
-    lines!(ax1, xs3, Δs, color = colours[findfirst(isequal(Φ0), Φ0s)], linewidth = 3, label = L"\Phi_0 = %$(Φ0)")
+# for Φ0 in Φ0s2
+#     xs = range(100, 1250, length = 100)
+#     xs2 = range(100, 1250, length = 50)
+#
+#     Δs = Δ_analytic.(xs, Φ0, λ, ωmax)
+#     lines!(ax2, xs, Δs, color = colours[findfirst(isequal(Φ0), Φ0s2)], linewidth = 3, label = L"\Phi_0 = %$(Φ0)")
+#
+#     numeric_rep = map(x -> Δ_numeric(x, (5.0 + start_frac_rep) * α, Φ0, λ, system2), xs2)
+#     numeric_att = map(x -> Δ_numeric(x, (5.0 + start_frac_att) * α, -Φ0, λ, system2), xs2)
+#
+#     scatter!(ax2, xs2, numeric_rep, color = colours[findfirst(isequal(Φ0), Φ0s2)], markersize = 16, marker = :cross)
+#     scatter!(ax2, xs2, numeric_att, color = colours[findfirst(isequal(Φ0), Φ0s2)], markersize = 16, marker = :hline)
+# end
 
-    numeric_rep = map(x -> Δ_numeric(x, (5.0 + start_frac_rep) * α, Φ0, λ, system), xs)
-    numeric_att = map(x -> Δ_numeric(x, (5.0 + start_frac_att) * α, -Φ0, λ, system), xs2)
-    println("we got here")
-    scatter!(ax1, xs, numeric_rep, color = colours[findfirst(isequal(Φ0), Φ0s)], markersize = 16, marker = :cross)
-
-    scatter!(ax1, xs2, numeric_att, color = colours[findfirst(isequal(Φ0), Φ0s)], markersize = 16, marker = :hline)
-end
-
-for Φ0 in Φ0s2
-    xs = range(100, 1250, length = 100)
-    xs2 = range(100, 1250, length = 50)
-
-    Δs = Δ_analytic.(xs, Φ0, λ, ωmax)
-    lines!(ax2, xs, Δs, color = colours[findfirst(isequal(Φ0), Φ0s2)], linewidth = 3, label = L"\Phi_0 = %$(Φ0)")
-
-    numeric_rep = map(x -> Δ_numeric(x, (5.0 + start_frac_rep) * α, Φ0, λ, system2), xs2)
-    numeric_att = map(x -> Δ_numeric(x, (5.0 + start_frac_att) * α, -Φ0, λ, system2), xs2)
-
-    scatter!(ax2, xs2, numeric_rep, color = colours[findfirst(isequal(Φ0), Φ0s2)], markersize = 16, marker = :cross)
-    scatter!(ax2, xs2, numeric_att, color = colours[findfirst(isequal(Φ0), Φ0s2)], markersize = 16, marker = :hline)
-end
-
-xlims!(ax1, 0, 80)
-xlims!(ax2, 100, 1250)
+xlims!(ax1, 0, 60)
+ylims!(ax1, 0, nothing)
 # ylims!(ax1, 0.0, 1.0)
 axislegend(ax1, labelsize = 20, unique = true)
-axislegend(ax2, labelsize = 20, unique = true)
+# axislegend(ax2, labelsize = 20, unique = true)
 fig
 
 

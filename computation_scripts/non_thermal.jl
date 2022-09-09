@@ -69,19 +69,19 @@ d = 60
 δ = system.δ                        # Time step
 α = 40                              # Distance between chain atoms
 μ = 1
-σ0 = [Int(5.5 * α)]
+σ0 = [Int(4.5 * α)]
 
 n_pts = τ / δ |> floor |> Int
-nChain = 300
+nChain = 100
 ρHs = zeros(nChain, n_pts)
 tTraj = ThermalTrajectory(system.ωmax, system.δ, ρHs, nothing)
 mem = Inf
 
-speeds = range(120, 120, step = 2)
-bias = 0.1
+speeds = range(20, 20, step = 2)
+bias = 0.0
 # bias = 0.175
 
-param_vals = vcat(map(ii -> [(20, 4, [ii]), (-20, 4, [ii])], speeds)...)
+param_vals = vcat(map(ii -> [(2, 4, [ii]), (-2, 4, [ii])], speeds)...)
 
 function full_traj(param)
     println(param)
@@ -94,7 +94,7 @@ function full_traj(param)
         )
     )
 
-        res = motion_solver(system, Φ0, λ, α, σ0, σdot0, μ, tTraj, mem, τ, threads=true, bias=bias, hold = 60)
+        res = motion_solver(system, Φ0, λ, α, σ0, σdot0, μ, tTraj, mem, τ)
         save_object(
             "data/Non_Thermal/Single_sigma0$(σ0)_sigmadot0$(σdot0)_Mem$(mem)_lambda$(λ)_Phi$(Φ0)_mu$(μ)_d$(d)_bias$(bias)_omegaT$(nothing)_tau$(τ).jld2",
             res,

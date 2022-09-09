@@ -1,16 +1,29 @@
+using Distributed
 @everywhere using Random
 @everywhere include("../src/main.jl")
 
 ## Prepare the ChainSystem's by calculating the recoil term
 d = 60       # Number of time steps in the fastest chain mode
-τmax = 500    # Simulation time
+τmax = 20    # Simulation time
 ωmax = 10    # Maximum frequency
-lmax = 300    # Number of chain atoms tracked
+lmax = 100    # Number of chain atoms tracked
 
 if (!isfile("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax).jld2"))
     res = mkChainSystem(ωmax, τmax, lmax, d)
     save_object("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax).jld2", res)
 end
+
+function precompute(ωmax, τmax, lmax, d)
+    filenames = filter(x -> first(x) !== '.' && occursin("_ωmax$(ωmax)_", x) && occursin("_d$(d)_", x), readdir(joinpath(pwd(), "precomputed/systems/")))
+
+    num_elems = [load_object(joinpath("precomputed/systems/", ii)).Γ |> size |> prod for ii in filenames]
+
+    Γ_prev = load_object(joinpath("precomputed/systems/", filenames[argmax(num_elems)])).Γ
+
+    res = mkChainSystem_test(ωmax, τmax, lmax, d, Γ_prev)
+    save_object("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax)_τmax$(τmax).jld2", res)
+end
+
 
 ## Prepare the ultrafine ChainSystem's by calculating the recoil term
 # d = 6000     # Number of time steps in the fastest chain mode

@@ -5,8 +5,7 @@ system_slow = load_object("precomputed/systems/System_ωmax10_d60_l200.jld2")
 filenames = ["precomputed/rH/rH_ωmax10_d60_ωT0.0_τ200.jld2",
              "precomputed/rH/rH_ωmax10_d60_ωT1.0_τ200.jld2",
              "precomputed/rH/rH_ωmax10_d60_ωT5.0_τ200.jld2",
-             "precomputed/rH/rH_ωmax10_d60_ωT10.0_τ200.jld2",
-             "precomputed/rH/rH_ωmax10_d60_ωT20.0_τ200.jld2"
+             "precomputed/rH/rH_ωmax10_d60_ωT10.0_τ200.jld2"
              ]
 
 α = 10                  # Distance between chain atoms

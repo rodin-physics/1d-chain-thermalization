@@ -1,5 +1,5 @@
 using Distributed
-proc_number = 2
+proc_number = 3
 if nprocs() < proc_number
     addprocs(proc_number - nprocs())
 end

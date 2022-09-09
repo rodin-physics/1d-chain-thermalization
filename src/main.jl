@@ -11,6 +11,7 @@ using Statistics
 using StatsBase
 using ToeplitzMatrices
 using Roots
+using KernelDensity
 
 ## Parameters
 η = 1e-12                       # Small number
@@ -99,6 +100,98 @@ function mkChainSystem(ωmax, τ_max, lmax, d)
             Γ_mat[:, ii] = Γ(δ * ii, 0:lmax, ωmax)
             next!(pr)
         end
+    end
+
+    return ChainSystem(ωmax, δ, Γ_mat)
+end
+
+
+function mkChainSystem_test(ωmax, τ_max, lmax, d, Γ_prev)
+    δ = (1 / ωmax) / d                          # Time step in units of t_slow
+    n_pts = floor(τ_max / δ) |> Int             # Number of time steps given τ_max and δ
+    Γ_dim = size(Γ_prev)
+
+    if lmax <= Γ_dim[1] && n_pts <= Γ_dim[2]
+        error("A file containing a sufficient amount of precomputed values already exists")
+    end
+
+    Γ_mat = zeros(lmax + 1, n_pts)          # Prepare the Γ matrix
+
+    if lmax > Γ_dim[1] && n_pts <= Γ_dim[2]
+        Γ_mat[1:Γ_dim[1], :] = Γ_prev[:,1:n_pts]   # Fill matrix with previous data
+        pr = Progress(n_pts)                        # Setup the progress meter
+        pts_per_thread = n_pts ÷ Threads.nthreads() # Calculate points per thread
+
+        # Reorder the time steps so that the load is equal for every thread because
+        # latter times take longer to evaluate
+        thread_pts =
+            reshape(1:(Threads.nthreads()*pts_per_thread), Threads.nthreads(), :)' |> vec |> collect
+
+        indices = (Γ_dim[1]:lmax)
+        Threads.@threads for ii in thread_pts
+            Γ_mat[indices, ii] = Γ(δ * ii, indices, ωmax)
+            next!(pr)
+        end
+
+        # Evaluate the remaining time steps
+        if thread_pts != n_pts
+            Threads.@threads for ii in (length(thread_pts)+1:n_pts)
+                Γ_mat[indices, ii] = Γ(δ * ii, indices, ωmax)
+                next!(pr)
+            end
+        end
+
+    elseif lmax <= Γ_dim[1] && n_pts > Γ_dim[2]
+        Γ_mat[:, 1:Γ_dim[2]] = Γ_prev[1:lmax+1,:]   # Fill matrix with previous data
+        n_pts = n_pts - Γ_dim[2]
+        pr = Progress(n_pts)                        # Setup the progress meter
+        pts_per_thread = n_pts ÷ Threads.nthreads() # Calculate points per thread
+
+        thread_pts =
+            reshape(Γ_dim[2]+1:(Threads.nthreads()*pts_per_thread), Threads.nthreads(), :)' |>
+            vec |>
+            collect
+
+        Threads.@threads for ii in thread_pts
+            Γ_mat[:, ii] = Γ(δ * ii, 0:lmax, ωmax)
+            next!(pr)
+        end
+
+        # Evaluate the remaining time steps
+        if thread_pts != n_pts
+            Threads.@threads for ii in (length(thread_pts)+1:n_pts)
+                Γ_mat[:, ii] = Γ(δ * ii, 0:lmax, ωmax)
+                next!(pr)
+            end
+        end
+
+    elseif lmax > Γ_dim[1] && n_pts > Γ_dim[2]
+        Γ_mat[1:Γ_dim[1], 1:Γ_dim[2]] = Γ_prev   # Fill matrix with previous data
+        pr = Progress(n_pts)                        # Setup the progress meter
+        pts_per_thread = n_pts ÷ Threads.nthreads() # Calculate points per thread
+
+        # Reorder the time steps so that the load is equal for every thread because
+        # latter times take longer to evaluate
+        thread_pts =
+            reshape(1:(Threads.nthreads()*pts_per_thread), Threads.nthreads(), :)' |>
+            vec |>
+            collect
+
+        Threads.@threads for ii in thread_pts
+            indices = ii <= Γ_dim[2] ? (Γ_dim[1]+1:lmax) : (0:lmax)
+            Γ_mat[indices, ii] = Γ(δ * ii, indices, ωmax)
+            next!(pr)
+        end
+
+        # Evaluate the remaining time steps
+        if thread_pts != n_pts
+            Threads.@threads for ii in (length(thread_pts)+1:n_pts)
+                indices = ii <= Γ_dim[2] ? (Γ_dim[1]+1:lmax) : (0:lmax)
+                Γ_mat[indices, ii] = Γ(δ * ii, indices, ωmax)
+                next!(pr)
+            end
+        end
+
     end
 
     return ChainSystem(ωmax, δ, Γ_mat)
@@ -318,21 +411,59 @@ function Δ_transport(v, Φ, λ, Ω, α)
     return isempty(vals) ? 0 : sum(vals)
 end
 
-function Δ_transport_smeared(v, Φ, λ, Ω, α)
-    v_ext = sqrt(v^2 - (8*π^2*Φ))
-    v_range = range(min(v, v_ext), max(v, v_ext), length = 50)
+function U_profile(r, Φ, λ)
+    return Φ*exp(-(r^2)/(2*λ^2))
+end
+
+# function productlog_approx(τ, σdot, Φ, μ, λ)
+#     return sqrt(σdot^2 + (2*λ^2/τ^2)*lambertw(-8*Φ*π^2/μ *τ^2/(2*λ^2) * exp(-σdot^2*τ^2/(2*λ^2))))
+# end
+
+
+
+function Δ_transport_smeared(v, Φ, λ, Ω, α, μ)
+    num_speeds = 10000
+    v_ext = sqrt(v^2 - (8*π^2*Φ/μ))
+    v_range = range(min(v, v_ext), max(v, v_ext), length = num_speeds)
+
+    xs = range(-α/v/2, α/v/2, length = num_speeds)
+
+    kde_data = kde(sqrt.(v^2 .- 8*π^2/μ*U_profile.(xs, Φ, λ/v)), npoints = num_speeds, boundary = (min(v, v_ext), max(v, v_ext)))
+
     vals = 0
-    for speed in v_range
-        sols = find_zeros(x -> ω(Ω, π*x) + x*(speed/α), -Ω*α/speed, 0, no_pts = 55)
+    for ii in 1:length(v_range)
+        sols = find_zeros(x -> ω(Ω, π*x) + x*(v_range[ii]/α), -Ω*α/v_range[ii], 0, no_pts = 60)
         ωprime(x) = π*sin(π*x)*cos(π*x)*(Ω^2 -1)/ω(Ω, π*x)
 
         for sol in sols
-            vals += (4*π^2*λ*Φ*ω(Ω, π*sol)/speed^2)^2 * π * exp(-2*π^2*λ^2*(ω(Ω, π*sol)^2)^2/speed^2) * (1 / abs(α*ωprime(sol)/speed + 1))
+            vals += kde_data.density[ii] * (4*π^2*λ*Φ*ω(Ω, π*sol)/v_range[ii]^2)^2 * π * exp(-2*π^2*λ^2*(ω(Ω, π*sol)^2)^2/v_range[ii]^2) * (1 / abs(α*ωprime(sol)/v_range[ii] + 1))
         end
     end
 
-    return vals
+    return (vals/sum(kde_data.density))
 end
+
+# function Δ_transport_smeared_productlog(v, Φ, λ, Ω, α, μ)
+#     num_speeds = 600
+#     v_ext = sqrt(v^2 - (8*π^2*Φ))
+#     v_range = range(min(v, v_ext), max(v, v_ext), length = num_speeds)
+#
+#     xs = range(-α/v/2, α/v/2, length = num_speeds)
+#
+#     kde_data = kde(productlog_approx.(xs, v, Φ, μ, λ), npoints = num_speeds, boundary = (min(v, v_ext), max(v, v_ext)))
+#
+#     vals = 0
+#     for ii in 1:length(v_range)
+#         sols = find_zeros(x -> ω(Ω, π*x) + x*(v_range[ii]/α), -Ω*α/v_range[ii], 0, no_pts = 60)
+#         ωprime(x) = π*sin(π*x)*cos(π*x)*(Ω^2 -1)/ω(Ω, π*x)
+#
+#         for sol in sols
+#             vals += kde_data.density[ii] * (4*π^2*λ*Φ*ω(Ω, π*sol)/v_range[ii]^2)^2 * π * exp(-2*π^2*λ^2*(ω(Ω, π*sol)^2)^2/v_range[ii]^2) * (1 / abs(α*ωprime(sol)/v_range[ii] + 1))
+#         end
+#     end
+#
+#     return (vals/sum(kde_data.density))
+# end
 
 # Speed of particle over time
 function particle_speed(data)

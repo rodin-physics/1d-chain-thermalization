@@ -2,7 +2,7 @@ include("../src/main.jl")
 using Peaks
 
 data_rep = load_object(
-    "data/non_thermal/Single_sigma0[220]_sigmadot0[42]_MemInf_lambda4_Phi8_mu1_d60_bias0.2_omegaTnothing_tau200.jld2")
+    "data/non_thermal/Bias_Single_σ0[180]_σdot0[13]_MemInf_λ4_Φ2_μ1.0_d60_ΩTnothing_τ800.jld2")
 
 data_att = load_object("data/Non_Thermal/Single_sigma0[220]_sigmadot0[42]_MemInf_lambda4_Phi-8_mu1_d60_bias0.2_omegaTnothing_tau200.jld2")
 
@@ -39,8 +39,8 @@ hlines!(ax1, [37.8, 41.79], linewidth = 2, linestyle = :dash, color = :black)
 
 # hlines!(ax1, resonance_speed.(1))
 
-xlims!(ax1, 180, 182)
-ylims!(ax1, 41.5, 42)
+xlims!(ax1, 0, 800)
+ylims!(ax1, 0, nothing)
 
 # xlims!(ax2, 0, 30)
 # ylims!(ax2, 0, 50)

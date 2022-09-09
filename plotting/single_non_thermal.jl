@@ -1,6 +1,6 @@
 include("../src/main.jl")
 
-step_size = 10
+step_size = 20
 
 # Speed of particle over time
 function particle_speed(data)
@@ -20,7 +20,7 @@ ax2 = Axis(fig[2, 1], xlabel = L"\tau", ylabel = L"\sigma")
 # REPULSIVE
 
 data = load_object(
-    "data/non_thermal/Single_σ0[200]_σdot0[50]_MemInf_λ4_Φ8_μ1_d300_bias0.0_ΩTnothing_τ100.jld2")
+    "data/non_thermal/Single_sigma0[220]_sigmadot0[50]_MemInf_lambda4_Phi2_mu1_d60_bias0.01_omegaTnothing_tau800.jld2")
 
 # Find all times where resonances occur
 resonance_speed(n) = (2 * data.ωmax * data.α) / ((2 * n) + 1)
@@ -29,13 +29,13 @@ res_times = [findall(x -> isapprox(x, ii, atol = 0.01) == true, σdots) for ii i
 
 δ = data.τs[2] - data.τs[1]
 
-τ_max = 100
+τ_max = 800
 idx = findall(data.τs .< τ_max)
 τs = data.τs[idx]
 rr = reduce(hcat, [data.ρs[ii, idx] .- ii * data.α for ii = 1:size(data.ρs)[1]])
 
 mx = maximum(abs.(rr)) / 1
-mx = 0.1
+mx = 0.2
 hm = heatmap!(
     ax1,
     τs[1:step_size:end],
@@ -61,12 +61,12 @@ lines!(
     linestyle = :dash,
 )
 Colorbar(fig[1, 2], hm; label = L"\Delta\rho", width = 15, ticksize = 15, tickalign = 1)
-xlims!(ax1, (0, 100))
-ylims!(ax1, (0, 4800))
+xlims!(ax1, (0, 800))
+ylims!(ax1, (0, 60000))
 # # ATTRACTIVE
 
 data = load_object(
-    "data/non_thermal/Single_σ0[220]_σdot0[50]_MemInf_λ4_Φ-8_μ1_d300_bias0.0_ΩTnothing_τ100.jld2",
+    "data/non_thermal/Single_σ0[220]_σdot0[50]_MemInf_λ4_Φ-8_μ1_d60_bias0.0_ΩTnothing_τ100.jld2",
 )
 # Find all times where resonances occur
 resonance_speed(n) = (2 * data.ωmax * data.α) / ((2 * n) + 1)
@@ -78,7 +78,7 @@ res_times = [findall(x -> isapprox(x, ii, atol = 0.004) == true, σdots) for ii 
 idx = findall(data.τs .< τ_max)
 τs = data.τs[idx]
 rr = reduce(hcat, [data.ρs[ii, idx] .- ii * data.α for ii = 1:size(data.ρs)[1]])
-mx = 0.1
+mx = 0.2
 # mx = maximum(abs.(rr)) / 3
 hm = heatmap!(
     ax2,
@@ -106,7 +106,7 @@ lines!(
 )
 Colorbar(fig[2, 2], hm; label = L"\Delta\rho", width = 15, ticksize = 15, tickalign = 1)
 
-xlims!(ax2, (0, 100))
-ylims!(ax2, (0, 4800))
+xlims!(ax2, (0, 125))
+ylims!(ax2, (0, 10000))
 fig
 # save("General_Example.pdf", fig)
