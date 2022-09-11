@@ -13,17 +13,40 @@ if (!isfile("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax).jld2"))
     save_object("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax).jld2", res)
 end
 
-function precompute(ωmax, τmax, lmax, d)
-    filenames = filter(x -> first(x) !== '.' && occursin("_ωmax$(ωmax)_", x) && occursin("_d$(d)_", x), readdir(joinpath(pwd(), "precomputed/systems/")))
-
-    num_elems = [load_object(joinpath("precomputed/systems/", ii)).Γ |> size |> prod for ii in filenames]
-
-    Γ_prev = load_object(joinpath("precomputed/systems/", filenames[argmax(num_elems)])).Γ
-
-    res = mkChainSystem_test(ωmax, τmax, lmax, d, Γ_prev)
-    save_object("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax)_τmax$(τmax).jld2", res)
+function file_parameters(filename)
+    curr = load_object(filename)
+    return (size(curr.Γ), curr.ωmax, curr.δ)
 end
 
+function precompute(ωmax, τmax, lmax, d)
+    δ = (1 / ωmax) / d
+    n_pts = floor(τmax / δ) |> Int
+
+    # Read in files that have the correct ωmax and d
+    filenames = filter(x -> first(x) !== '.' && occursin("_ωmax$(ωmax)_", x) && occursin("_d$(d)_", x), readdir(joinpath(pwd(), "precomputed/systems/")))
+
+    if isempty(filenames)
+        res = mkChainSystem(ωmax, τmax, lmax, d)
+        return save_object("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax).jld2", res)
+    end
+
+    # Check if precomputation is necessary
+    size_elems = [load_object(joinpath("precomputed/systems/", ii)).Γ |> size for ii in filenames]
+
+    if any(x -> (lmax <= x[1] && n_pts <= x[2]) == true, size_elems)
+        error("A file containing a sufficient amount of precomputed values already exists")
+    else
+        # Return existing matrix with most number of elements already computed
+        diff_elems = map(x -> (lmax * n_pts) - min(lmax,x[1])*min(n_pts,x[2]), size_elems)
+
+        Γ_prev = load_object(joinpath("precomputed/systems/", filenames[argmin(diff_elems)])).Γ
+
+        res = mkChainSystem_test(ωmax, τmax, lmax, d, Γ_prev)
+        save_object("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax)_τmax$(τmax).jld2", res)
+    end
+end
+
+precompute(10, 302, 302, 60)
 
 ## Prepare the ultrafine ChainSystem's by calculating the recoil term
 # d = 6000     # Number of time steps in the fastest chain mode

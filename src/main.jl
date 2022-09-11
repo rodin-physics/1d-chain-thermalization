@@ -110,14 +110,10 @@ function mkChainSystem_test(ωmax, τ_max, lmax, d, Γ_prev)
     δ = (1 / ωmax) / d                          # Time step in units of t_slow
     n_pts = floor(τ_max / δ) |> Int             # Number of time steps given τ_max and δ
     Γ_dim = size(Γ_prev)
-
-    if lmax <= Γ_dim[1] && n_pts <= Γ_dim[2]
-        error("A file containing a sufficient amount of precomputed values already exists")
-    end
-
-    Γ_mat = zeros(lmax + 1, n_pts)          # Prepare the Γ matrix
+    Γ_mat = zeros(lmax + 1, n_pts)              # Prepare the Γ matrix
 
     if lmax > Γ_dim[1] && n_pts <= Γ_dim[2]
+        println("Sufficient number of time steps, calculating for more chain masses")
         Γ_mat[1:Γ_dim[1], :] = Γ_prev[:,1:n_pts]   # Fill matrix with previous data
         pr = Progress(n_pts)                        # Setup the progress meter
         pts_per_thread = n_pts ÷ Threads.nthreads() # Calculate points per thread
@@ -127,14 +123,14 @@ function mkChainSystem_test(ωmax, τ_max, lmax, d, Γ_prev)
         thread_pts =
             reshape(1:(Threads.nthreads()*pts_per_thread), Threads.nthreads(), :)' |> vec |> collect
 
-        indices = (Γ_dim[1]:lmax)
+        indices = (Γ_dim[1]+1:lmax)
         Threads.@threads for ii in thread_pts
             Γ_mat[indices, ii] = Γ(δ * ii, indices, ωmax)
             next!(pr)
         end
 
         # Evaluate the remaining time steps
-        if thread_pts != n_pts
+        if length(thread_pts) != n_pts
             Threads.@threads for ii in (length(thread_pts)+1:n_pts)
                 Γ_mat[indices, ii] = Γ(δ * ii, indices, ωmax)
                 next!(pr)
@@ -142,13 +138,14 @@ function mkChainSystem_test(ωmax, τ_max, lmax, d, Γ_prev)
         end
 
     elseif lmax <= Γ_dim[1] && n_pts > Γ_dim[2]
+        println("Sufficient number of chain atoms, calculating for more time steps")
         Γ_mat[:, 1:Γ_dim[2]] = Γ_prev[1:lmax+1,:]   # Fill matrix with previous data
-        n_pts = n_pts - Γ_dim[2]
-        pr = Progress(n_pts)                        # Setup the progress meter
-        pts_per_thread = n_pts ÷ Threads.nthreads() # Calculate points per thread
+        rem_pts = n_pts - Γ_dim[2]
+        pr = Progress(rem_pts)                        # Setup the progress meter
+        pts_per_thread = rem_pts ÷ Threads.nthreads() # Calculate points per thread
 
         thread_pts =
-            reshape(Γ_dim[2]+1:(Threads.nthreads()*pts_per_thread), Threads.nthreads(), :)' |>
+            reshape(Γ_dim[2]+1:(Threads.nthreads()*pts_per_thread+Γ_dim[2]), Threads.nthreads(), :)' |>
             vec |>
             collect
 
@@ -158,7 +155,7 @@ function mkChainSystem_test(ωmax, τ_max, lmax, d, Γ_prev)
         end
 
         # Evaluate the remaining time steps
-        if thread_pts != n_pts
+        if length(thread_pts) != rem_pts
             Threads.@threads for ii in (length(thread_pts)+1:n_pts)
                 Γ_mat[:, ii] = Γ(δ * ii, 0:lmax, ωmax)
                 next!(pr)
@@ -166,32 +163,33 @@ function mkChainSystem_test(ωmax, τ_max, lmax, d, Γ_prev)
         end
 
     elseif lmax > Γ_dim[1] && n_pts > Γ_dim[2]
+        println("Calculating for more chain masses and time steps")
         Γ_mat[1:Γ_dim[1], 1:Γ_dim[2]] = Γ_prev   # Fill matrix with previous data
         pr = Progress(n_pts)                        # Setup the progress meter
         pts_per_thread = n_pts ÷ Threads.nthreads() # Calculate points per thread
 
-        # Reorder the time steps so that the load is equal for every thread because
-        # latter times take longer to evaluate
+        # Reorder the time steps so that the load is equal for every thread because latter times take longer to evaluate
         thread_pts =
             reshape(1:(Threads.nthreads()*pts_per_thread), Threads.nthreads(), :)' |>
             vec |>
             collect
 
         Threads.@threads for ii in thread_pts
-            indices = ii <= Γ_dim[2] ? (Γ_dim[1]+1:lmax) : (0:lmax)
-            Γ_mat[indices, ii] = Γ(δ * ii, indices, ωmax)
+            indices1 = ii <= Γ_dim[2] ? (Γ_dim[1]+1:lmax+1) : (1:lmax+1)
+            indices2 = ii <= Γ_dim[2] ? (Γ_dim[1]:lmax) : (0:lmax)
+            Γ_mat[indices1, ii] = Γ(δ * ii, indices2, ωmax)
             next!(pr)
         end
 
         # Evaluate the remaining time steps
-        if thread_pts != n_pts
+        if length(thread_pts) != n_pts
             Threads.@threads for ii in (length(thread_pts)+1:n_pts)
-                indices = ii <= Γ_dim[2] ? (Γ_dim[1]+1:lmax) : (0:lmax)
-                Γ_mat[indices, ii] = Γ(δ * ii, indices, ωmax)
+                indices1 = ii <= Γ_dim[2] ? (Γ_dim[1]+1:lmax+1) : (1:lmax+1)
+                indices2 = ii <= Γ_dim[2] ? (Γ_dim[1]:lmax) : (0:lmax)
+                Γ_mat[indices1, ii] = Γ(δ * ii, indices2, ωmax)
                 next!(pr)
             end
         end
-
     end
 
     return ChainSystem(ωmax, δ, Γ_mat)
