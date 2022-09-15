@@ -20,7 +20,7 @@ ax2 = Axis(fig[2, 1], xlabel = L"\tau", ylabel = L"\sigma")
 # REPULSIVE
 
 data = load_object(
-    "data/non_thermal/Single_sigma0[220]_sigmadot0[50]_MemInf_lambda4_Phi2_mu1_d60_bias0.01_omegaTnothing_tau800.jld2")
+    "data/non_thermal/Single_sigma0[220]_sigmadot0[120]_MemInf_lambda4_Phi20_mu1_d60_bias0.0_omegaTnothing_tau125.jld2")
 
 # Find all times where resonances occur
 resonance_speed(n) = (2 * data.ωmax * data.α) / ((2 * n) + 1)
@@ -29,7 +29,7 @@ res_times = [findall(x -> isapprox(x, ii, atol = 0.01) == true, σdots) for ii i
 
 δ = data.τs[2] - data.τs[1]
 
-τ_max = 800
+τ_max = 125
 idx = findall(data.τs .< τ_max)
 τs = data.τs[idx]
 rr = reduce(hcat, [data.ρs[ii, idx] .- ii * data.α for ii = 1:size(data.ρs)[1]])
@@ -61,12 +61,12 @@ lines!(
     linestyle = :dash,
 )
 Colorbar(fig[1, 2], hm; label = L"\Delta\rho", width = 15, ticksize = 15, tickalign = 1)
-xlims!(ax1, (0, 800))
-ylims!(ax1, (0, 60000))
+xlims!(ax1, (0, 125))
+ylims!(ax1, (0, 10000))
 # # ATTRACTIVE
 
 data = load_object(
-    "data/non_thermal/Single_σ0[220]_σdot0[50]_MemInf_λ4_Φ-8_μ1_d60_bias0.0_ΩTnothing_τ100.jld2",
+    "data/non_thermal/Single_sigma0[220]_sigmadot0[120]_MemInf_lambda4_Phi-20_mu1_d60_bias0.0_omegaTnothing_tau125.jld2",
 )
 # Find all times where resonances occur
 resonance_speed(n) = (2 * data.ωmax * data.α) / ((2 * n) + 1)
@@ -74,7 +74,7 @@ resonance_speed(n) = (2 * data.ωmax * data.α) / ((2 * n) + 1)
 res_times = [findall(x -> isapprox(x, ii, atol = 0.004) == true, σdots) for ii in resonance_speed.(8:15)]
 
 δ = data.τs[2] - data.τs[1]
-τ_max = 100
+τ_max = 125
 idx = findall(data.τs .< τ_max)
 τs = data.τs[idx]
 rr = reduce(hcat, [data.ρs[ii, idx] .- ii * data.α for ii = 1:size(data.ρs)[1]])

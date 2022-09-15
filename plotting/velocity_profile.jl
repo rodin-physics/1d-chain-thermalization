@@ -94,8 +94,8 @@ hlines!(ax4, [sqrt(Φ0 * 8 * π^2)], color = my_red, linewidth = 2, label = "Cap
 hlines!(ax4, [0.0], color = my_black, linewidth = 2)
 (xs_rep, speed_rep) = particle_speed(data_rep)
 (xs_att, speed_att) = particle_speed(data_att)
-lines!(ax4, xs_rep, speed_rep, linewidth = 4, color = my_vermillion)
-lines!(ax4, xs_att, speed_att, linewidth = 4, color = my_blue)
+lines!(ax4, xs_rep[1:2:end], speed_rep[1:2:end], linewidth = 4, color = my_vermillion)
+lines!(ax4, xs_att[1:2:end], speed_att[1:2:end], linewidth = 4, color = my_blue)
 Label(fig[2, 2, TopLeft()], "(d)", textsize = 30)
 
 # xlims!(ax1, -20, 20)

@@ -22,8 +22,8 @@ ax2 = Axis(fig[2,2], xlabel = L"\tau", xticks = 200:200:800, yticklabelsvisible 
 ax3 = Axis(fig[2,3], xlabel=L"\Delta_\mathrm{drift}", ylabel=L"\dot{\sigma}")
 
 # Top axes
-ax4 = Axis(fig[1,1], xlabel = L"\tau", ylabel = L"\dot{\sigma}", xticks = 0:100:800, title = "Repulsive")
-ax5 = Axis(fig[1,2], xlabel = L"\tau", xticks = 100:100:800, title = "Attractive", yticklabelsvisible = false)
+ax4 = Axis(fig[1,1], xlabel = L"\dot{\sigma}", ylabel = L"Speed Diff after 200 $\tau$", xticks = 50:10:100, title = "Repulsive")
+ax5 = Axis(fig[1,2], xlabel = L"\dot{\sigma}", xticks = 50:10:100, title = "Attractive", yticklabelsvisible = false)
 ax6 = Axis(fig[1,3], xlabel=L"\Delta_\mathrm{drift}", ylabel=L"\dot{\sigma}")
 rowsize!(fig.layout, 1, Relative(0.25))
 
@@ -33,6 +33,9 @@ hlines!(ax1, [sqrt(8*Φ0*π^2)], linewidth = 2, color = my_red, linestyle = :das
 hlines!(ax2, [α/n for n in 1:8], linewidth = 2, linestyle = :dash, color = my_black)
 
 hlines!(ax3, [α/n for n in 1:8], linewidth = 2, linestyle = :dash, color = my_black)
+hlines!(ax4, [0.0], color = my_black, linewidth = 3)
+hlines!(ax5, [0.0], color = my_black, linewidth = 3)
+
 scatter!(ax3, Δ_bias, xs, color = my_black, linewidth = 2)
 scatter!(ax6, Δ_bias, xs, color = my_black, linewidth = 2)
 
@@ -61,12 +64,13 @@ for ii in 1:length(filenames)
     data = readdlm(joinpath("data/proc_tau200/", filenames[ii]))
     τs = data[:,1]
     speeds = data[:,2]
+    speed_diff = speeds[end] - speeds[1]
 
     if occursin("Phi2", filenames[ii])
-        lines!(ax4, τs, speeds, linewidth = 4, color = my_vermillion)
+        scatter!(ax4, [speeds[1]], [speed_diff], markersize = 13, color = my_vermillion)
 
     elseif occursin("Phi-2", filenames[ii])
-        lines!(ax5, τs, speeds, linewidth = 4, color = my_blue)
+        scatter!(ax5, [speeds[1]], [speed_diff], markersize = 13, color = my_blue)
     end
 
 end
@@ -81,16 +85,18 @@ xlims!(ax2, 0, 800)
 
 vlines!(ax3, [0.01], label = "Bias", color = my_black, linewidth = 2)
 xlims!(ax3, 0, 0.5)
-xlims!(ax4, 0, 200)
-xlims!(ax5, 0, 200)
-xlims!(ax6, 0, 0.5)
 
-ylims!(ax1, 0, 50)
-ylims!(ax2, 0, 50)
+xlims!(ax4, 55, 91)
+xlims!(ax5, 55, 91)
+xlims!(ax6, 0, 0.1)
+
+ylims!(ax1, 0, 94)
+ylims!(ax2, 0, 94)
 ylims!(ax3, 0, 50)
-ylims!(ax4, 85, 91)
-ylims!(ax5, 85, 91)
-#
-ylims!(ax6, 58, 80)
+# ylims!(ax4, 58, 80)
+# ylims!(ax5, 58, 80)
+
+vlines!(ax6, [0.01], label = "Bias", color = my_black, linewidth = 2)
+ylims!(ax6, 58, 90)
 # axislegend(ax3, labelsize = 30, position = :rb)
 fig

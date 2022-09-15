@@ -95,7 +95,7 @@ function mkChainSystem(ωmax, τ_max, lmax, d)
     end
 
     # Evaluate the remaining time steps
-    if thread_pts != n_pts
+    if length(thread_pts) != n_pts
         Threads.@threads for ii in (length(thread_pts)+1:n_pts)
             Γ_mat[:, ii] = Γ(δ * ii, 0:lmax, ωmax)
             next!(pr)
