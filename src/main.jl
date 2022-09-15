@@ -12,19 +12,20 @@ using StatsBase
 using ToeplitzMatrices
 using Roots
 using KernelDensity
+using DelimitedFiles
 
 ## Parameters
 η = 1e-12                       # Small number
 ϵ = 1e-20
 ## Friendly colors
-my_red = colorant"rgba(204, 121, 167, 0.75)"
-my_vermillion = colorant"rgba(213, 94, 0, 0.75)"
-my_orange = colorant"rgba(230, 159, 0, 0.75)"
-my_yellow = colorant"rgba(240, 228, 66, 0.75)"
-my_green = colorant"rgba(0, 158, 115, 0.75)"
-my_sky = colorant"rgba(86, 180, 233, 0.75)"
-my_blue = colorant"rgba(0, 114, 178, 0.75)"
-my_black = colorant"rgba(0, 0, 0, 0.75)"
+my_red = colorant"rgba(204, 121, 167, 1.0)"
+my_vermillion = colorant"rgba(213, 94, 0, 1.0)"
+my_orange = colorant"rgba(230, 159, 0, 1.0)"
+my_yellow = colorant"rgba(240, 228, 66, 1.0)"
+my_green = colorant"rgba(0, 158, 115, 1.0)"
+my_sky = colorant"rgba(86, 180, 233, 1.0)"
+my_blue = colorant"rgba(0, 114, 178, 1.0)"
+my_black = colorant"rgba(0, 0, 0, 1.0)"
 
 ## Types
 struct ChainSystem
@@ -67,6 +68,7 @@ function Γ(τ, ls, ωmax)
     return (res[1] * 2 / π)
 end
 
+# Correlation function
 function pos_corr(τ, l, ωT, ωmax)
     int_fun(x) =
         cos(2 * x * l) * coth(ω(ωmax, x) / 2 / ωT) *
@@ -75,51 +77,44 @@ function pos_corr(τ, l, ωT, ωmax)
     return (res[1] / π)
 end
 
-function mkChainSystem(ωmax, τ_max, lmax, d)
+# Precompute recoil term and take existing files into account
+function mkChainSystem(ωmax, τ_max, lmax, d, Γ_prev)
     δ = (1 / ωmax) / d                          # Time step in units of t_slow
     n_pts = floor(τ_max / δ) |> Int             # Number of time steps given τ_max and δ
+    Γ_dim = size(Γ_prev)                        # Existing matrix size (if any)
     Γ_mat = zeros(lmax + 1, n_pts)              # Prepare the Γ matrix
-    pr = Progress(n_pts)                        # Setup the progress meter
-    pts_per_thread = n_pts ÷ Threads.nthreads() # Calculate points per thread
 
-    # Reorder the time steps so that the load is equal for every thread because
-    # latter times take longer to evaluate
-    thread_pts =
-        reshape(1:(Threads.nthreads()*pts_per_thread), Threads.nthreads(), :)' |>
-        vec |>
-        collect
+    # No precomputation files exist
+    if isempty(Γ_prev)
+        println("No existing file, starting precomputation")
+        pr = Progress(n_pts)                        # Setup the progress meter
+        pts_per_thread = n_pts ÷ Threads.nthreads() # Calculate points per thread
 
-    Threads.@threads for ii in thread_pts
-        Γ_mat[:, ii] = Γ(δ * ii, 0:lmax, ωmax)
-        next!(pr)
-    end
+        # Reorder the time steps so that the load is equal for every thread because latter times take longer to evaluate
+        thread_pts =
+            reshape(1:(Threads.nthreads()*pts_per_thread), Threads.nthreads(), :)' |> vec |> collect
 
-    # Evaluate the remaining time steps
-    if length(thread_pts) != n_pts
-        Threads.@threads for ii in (length(thread_pts)+1:n_pts)
+        Threads.@threads for ii in thread_pts
             Γ_mat[:, ii] = Γ(δ * ii, 0:lmax, ωmax)
             next!(pr)
         end
-    end
 
-    return ChainSystem(ωmax, δ, Γ_mat)
-end
+        # Evaluate the remaining time steps if needed
+        if length(thread_pts) != n_pts
+            Threads.@threads for ii in (length(thread_pts)+1:n_pts)
+                Γ_mat[:, ii] = Γ(δ * ii, 0:lmax, ωmax)
+                next!(pr)
+            end
+        end
 
-
-function mkChainSystem_test(ωmax, τ_max, lmax, d, Γ_prev)
-    δ = (1 / ωmax) / d                          # Time step in units of t_slow
-    n_pts = floor(τ_max / δ) |> Int             # Number of time steps given τ_max and δ
-    Γ_dim = size(Γ_prev)
-    Γ_mat = zeros(lmax + 1, n_pts)              # Prepare the Γ matrix
-
-    if lmax > Γ_dim[1] && n_pts <= Γ_dim[2]
+    # A file exists with enough time steps, but not enough chain masses
+    elseif lmax > Γ_dim[1] && n_pts <= Γ_dim[2]
         println("Sufficient number of time steps, calculating for more chain masses")
         Γ_mat[1:Γ_dim[1], :] = Γ_prev[:,1:n_pts]   # Fill matrix with previous data
         pr = Progress(n_pts)                        # Setup the progress meter
         pts_per_thread = n_pts ÷ Threads.nthreads() # Calculate points per thread
 
-        # Reorder the time steps so that the load is equal for every thread because
-        # latter times take longer to evaluate
+        # Reorder the time steps
         thread_pts =
             reshape(1:(Threads.nthreads()*pts_per_thread), Threads.nthreads(), :)' |> vec |> collect
 
@@ -137,6 +132,7 @@ function mkChainSystem_test(ωmax, τ_max, lmax, d, Γ_prev)
             end
         end
 
+    # A file exists with enough chain masses, but not enough time steps
     elseif lmax <= Γ_dim[1] && n_pts > Γ_dim[2]
         println("Sufficient number of chain atoms, calculating for more time steps")
         Γ_mat[:, 1:Γ_dim[2]] = Γ_prev[1:lmax+1,:]   # Fill matrix with previous data
@@ -144,6 +140,7 @@ function mkChainSystem_test(ωmax, τ_max, lmax, d, Γ_prev)
         pr = Progress(rem_pts)                        # Setup the progress meter
         pts_per_thread = rem_pts ÷ Threads.nthreads() # Calculate points per thread
 
+        # Reorder the time steps
         thread_pts =
             reshape(Γ_dim[2]+1:(Threads.nthreads()*pts_per_thread+Γ_dim[2]), Threads.nthreads(), :)' |>
             vec |>
@@ -162,13 +159,14 @@ function mkChainSystem_test(ωmax, τ_max, lmax, d, Γ_prev)
             end
         end
 
+    # A file exists with insufficient number of chain masses and time steps
     elseif lmax > Γ_dim[1] && n_pts > Γ_dim[2]
         println("Calculating for more chain masses and time steps")
         Γ_mat[1:Γ_dim[1], 1:Γ_dim[2]] = Γ_prev   # Fill matrix with previous data
         pr = Progress(n_pts)                        # Setup the progress meter
         pts_per_thread = n_pts ÷ Threads.nthreads() # Calculate points per thread
 
-        # Reorder the time steps so that the load is equal for every thread because latter times take longer to evaluate
+        # Reorder the time steps
         thread_pts =
             reshape(1:(Threads.nthreads()*pts_per_thread), Threads.nthreads(), :)' |>
             vec |>
@@ -336,6 +334,7 @@ function motion_solver(
     return SystemSolution(ωmax, μ, τs, τ0, α, Φ0, λ, σs, ρs, bias, tTraj.ωT)
 end
 
+# Analytic dissipation for Gaussian potential
 function Δ_analytic(v, Φ, λ, Ω)
     z = (2 * π * λ / v)^2
     return (
@@ -349,39 +348,17 @@ function Δ_analytic(v, Φ, λ, Ω)
     )
 end
 
+# Calculate energy losses along a full trajectory
 function Δ_traj(data)
-    δ = data.τs[2] - data.τs[1]
-    σs = data.σs |> vec
-    # Get indices of points when the mobile particle
-    # is halfway between chain's equilibrium points
-    max_lattice_pos = min(data.ρs[end, 1], maximum(σs)) / data.α |> floor |> Int
-    start_lattice_pos = floor(σs[1] / data.α) |> Int
-
-    idx =
-        [argmin(abs.(σs .- (n + 1 / 2) * data.α)) for n = start_lattice_pos:max_lattice_pos]
-    idx = filter(x -> x <= length(σs) - 1, idx)
-    # Get speeds at these points and corresponding times
-    σ_dots = (σs[idx.+1] - σs[idx]) ./ δ
-    τs = data.τs[idx]
-    # Get the kinetic energy
-    KE = 0.5 * data.μ * (σ_dots ./ 2 ./ π) .^ 2
-    idx = findall(x -> x > data.Φ, KE)
-    KE = KE[idx]
-    σ_dots = σ_dots[idx]
-    Δs = KE[1:end-1] - KE[2:end]
-    return (σ_dots[1:end-1], Δs)
-
-end
-
-function Δ_traj2(data)
     δ = data.τs[2] - data.τs[1]
     σs = data.σs |> vec
     ρs = data.ρs
 
-    mod_val = mod(σs[1], data.α)
+    # Find the chain indices where the mobile particle starts and ends
     chain_idx = searchsortedlast(ρs[:,1], σs[1])
     max_lattice_pos = min(data.ρs[end, 1], maximum(σs)) / data.α |> floor |> Int
 
+    # Find the indices halfway between chain masses as chain moves
     idx = [argmin(abs.(σs .- (ρs[n, :] .+ (0.5 * data.α)))) for n in chain_idx:max_lattice_pos]
     idx = filter(x -> x <= length(σs) - 1, idx)
 
@@ -389,7 +366,7 @@ function Δ_traj2(data)
     σ_dots = (σs[idx.+1] - σs[idx]) ./ δ
     τs = data.τs[idx]
 
-    # Get the kinetic energy
+    # Get the kinetic energy and filter out energies less that potential height
     KE = 0.5 * data.μ * (σ_dots ./ 2 ./ π) .^ 2
     idx = findall(x -> x > data.Φ, KE)
     KE = KE[idx]
@@ -398,8 +375,9 @@ function Δ_traj2(data)
     return (σ_dots[1:end-1], Δs)
 end
 
-
+# Energy loss DeltaBar in the steady-state limit
 function Δ_transport(v, Φ, λ, Ω, α)
+    # Find zeros of function
     sols = find_zeros(x -> ω(Ω, π*x) + x*(v/α), -Ω*α/v, 0, no_pts = 55)
 
     ωprime(x) = π*sin(π*x)*cos(π*x)*(Ω^2 -1)/ω(Ω, π*x)
@@ -409,25 +387,23 @@ function Δ_transport(v, Φ, λ, Ω, α)
     return isempty(vals) ? 0 : sum(vals)
 end
 
+# Gaussian interaction profile
 function U_profile(r, Φ, λ)
     return Φ*exp(-(r^2)/(2*λ^2))
 end
 
-# function productlog_approx(τ, σdot, Φ, μ, λ)
-#     return sqrt(σdot^2 + (2*λ^2/τ^2)*lambertw(-8*Φ*π^2/μ *τ^2/(2*λ^2) * exp(-σdot^2*τ^2/(2*λ^2))))
-# end
-
-
-
-function Δ_transport_smeared(v, Φ, λ, Ω, α, μ)
+# Broadened energy loss DeltaBar in the steady-state limit
+function Δ_transport_broadened(v, Φ, λ, Ω, α, μ)
+    # Get range of particle velocities as it passes a chain mass
     num_speeds = 10000
     v_ext = sqrt(v^2 - (8*π^2*Φ/μ))
     v_range = range(min(v, v_ext), max(v, v_ext), length = num_speeds)
 
+    # Get probability density of speeds as particle passes a chain mass
     xs = range(-α/v/2, α/v/2, length = num_speeds)
-
     kde_data = kde(sqrt.(v^2 .- 8*π^2/μ*U_profile.(xs, Φ, λ/v)), npoints = num_speeds, boundary = (min(v, v_ext), max(v, v_ext)))
 
+    # Obtain weighted sum of Deltabar solutions
     vals = 0
     for ii in 1:length(v_range)
         sols = find_zeros(x -> ω(Ω, π*x) + x*(v_range[ii]/α), -Ω*α/v_range[ii], 0, no_pts = 60)
@@ -439,36 +415,4 @@ function Δ_transport_smeared(v, Φ, λ, Ω, α, μ)
     end
 
     return (vals/sum(kde_data.density))
-end
-
-# function Δ_transport_smeared_productlog(v, Φ, λ, Ω, α, μ)
-#     num_speeds = 600
-#     v_ext = sqrt(v^2 - (8*π^2*Φ))
-#     v_range = range(min(v, v_ext), max(v, v_ext), length = num_speeds)
-#
-#     xs = range(-α/v/2, α/v/2, length = num_speeds)
-#
-#     kde_data = kde(productlog_approx.(xs, v, Φ, μ, λ), npoints = num_speeds, boundary = (min(v, v_ext), max(v, v_ext)))
-#
-#     vals = 0
-#     for ii in 1:length(v_range)
-#         sols = find_zeros(x -> ω(Ω, π*x) + x*(v_range[ii]/α), -Ω*α/v_range[ii], 0, no_pts = 60)
-#         ωprime(x) = π*sin(π*x)*cos(π*x)*(Ω^2 -1)/ω(Ω, π*x)
-#
-#         for sol in sols
-#             vals += kde_data.density[ii] * (4*π^2*λ*Φ*ω(Ω, π*sol)/v_range[ii]^2)^2 * π * exp(-2*π^2*λ^2*(ω(Ω, π*sol)^2)^2/v_range[ii]^2) * (1 / abs(α*ωprime(sol)/v_range[ii] + 1))
-#         end
-#     end
-#
-#     return (vals/sum(kde_data.density))
-# end
-
-# Speed of particle over time
-function particle_speed(data)
-    σs = data.σs |> vec
-    τs = data.τs
-    δ = τs[2] - τs[1]
-    speeds = [((σs[ii+1] - σs[ii]) / δ) for ii in 1:(length(σs)-1)]
-
-    return (τs[2:end], speeds)
 end

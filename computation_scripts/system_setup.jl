@@ -1,22 +1,11 @@
-using Distributed
-@everywhere using Random
-@everywhere include("../src/main.jl")
+using Random
+include("../src/main.jl")
 
 ## Prepare the ChainSystem's by calculating the recoil term
 d = 60       # Number of time steps in the fastest chain mode
 τmax = 20    # Simulation time
 ωmax = 10    # Maximum frequency
-lmax = 100    # Number of chain atoms tracked
-
-if (!isfile("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax).jld2"))
-    res = mkChainSystem(ωmax, τmax, lmax, d)
-    save_object("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax).jld2", res)
-end
-
-function file_parameters(filename)
-    curr = load_object(filename)
-    return (size(curr.Γ), curr.ωmax, curr.δ)
-end
+lmax = 100   # Number of chain atoms tracked
 
 function precompute(ωmax, τmax, lmax, d)
     δ = (1 / ωmax) / d
@@ -25,9 +14,10 @@ function precompute(ωmax, τmax, lmax, d)
     # Read in files that have the correct ωmax and d
     filenames = filter(x -> first(x) !== '.' && occursin("_ωmax$(ωmax)_", x) && occursin("_d$(d)_", x), readdir(joinpath(pwd(), "precomputed/systems/")))
 
+    # No precomputation files exist
     if isempty(filenames)
-        res = mkChainSystem(ωmax, τmax, lmax, d)
-        return save_object("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax).jld2", res)
+        res = mkChainSystem(ωmax, τmax, lmax, d, Matrix[])
+        return save_object("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax)_τmax$(τmax).jld2", res)
     end
 
     # Check if precomputation is necessary
@@ -41,12 +31,12 @@ function precompute(ωmax, τmax, lmax, d)
 
         Γ_prev = load_object(joinpath("precomputed/systems/", filenames[argmin(diff_elems)])).Γ
 
-        res = mkChainSystem_test(ωmax, τmax, lmax, d, Γ_prev)
+        res = mkChainSystem(ωmax, τmax, lmax, d, Γ_prev)
         save_object("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax)_τmax$(τmax).jld2", res)
     end
 end
 
-precompute(10, 302, 302, 60)
+precompute(ωmax, τmax, lmax, d)
 
 ## Prepare the ultrafine ChainSystem's by calculating the recoil term
 # d = 6000     # Number of time steps in the fastest chain mode
@@ -58,6 +48,8 @@ precompute(10, 302, 302, 60)
 #     res = mkChainSystem(ωmax, τmax, lmax, d)
 #     save_object("precomputed/systems/System_ωmax$(ωmax)_d$(d)_l$(lmax).jld2", res)
 # end
+
+# precompute(ωmax, τmax, lmax, d)
 
 # println("Calculating thermal trajectories")
 # ## Precompute the thermal trajectories

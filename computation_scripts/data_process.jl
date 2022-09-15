@@ -12,22 +12,26 @@ function particle_speed(data)
     return (τs[2:end], speeds)
 end
 
-filenames = filter(x -> first(x) !== '.', readdir(joinpath(pwd(), "data/final_tau800/")))
+dir_name = "data/final_tau800/"
+final_dir = "data/proc_tau800"
+
+## Process data in dir_name and extract velocities between chain masses
+filenames = filter(x -> first(x) !== '.', readdir(joinpath(pwd(), dir_name)))
 
 for ii in 1:length(filenames)
     println(ii, " out of ", length(filenames))
-    data = load_object(joinpath(pwd(), "data/final_tau800/", filenames[ii]))
+    data = load_object(joinpath(pwd(), dir_name, filenames[ii]))
     (τs, speeds) = particle_speed(data)
 
     if data.Φ > 0 && all(speeds.>=0)
         pks, vals = findmaxima(speeds)
-        cd("data/proc_tau800/")
+        cd(final_dir)
         writedlm(filenames[ii] * ".dat", [τs[pks] vals])
         cd("../../")
 
     elseif data.Φ < 0 && all(speeds.>=0)
         pks, vals = findminima(speeds)
-        cd("data/proc_tau800/")
+        cd(final_dir)
         writedlm(filenames[ii] * ".dat", [τs[pks] vals])
         cd("../../")
     end

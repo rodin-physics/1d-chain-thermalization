@@ -2,40 +2,25 @@ include("../src/main.jl")
 
 step_size = 20
 
-# Speed of particle over time
-function particle_speed(data)
-    σs = data.σs |> vec
-    τs = data.τs
-    δ = τs[2] - τs[1]
-    speeds = [((σs[ii+1] - σs[ii]) / δ) for ii in 1:(length(σs)-1)]
-
-    return (τs[2:end], speeds)
-end
-
 ## Plotting
 fig = Figure(resolution = (1200, 1600), font = "CMU Serif", fontsize = 36)
 ax1 = Axis(fig[1, 1], xlabel = L"\tau", ylabel = L"\sigma")
 ax2 = Axis(fig[2, 1], xlabel = L"\tau", ylabel = L"\sigma")
 
-# REPULSIVE
+## REPULSIVE
 
+# Load data
 data = load_object(
     "data/non_thermal/Single_sigma0[220]_sigmadot0[120]_MemInf_lambda4_Phi20_mu1_d60_bias0.0_omegaTnothing_tau125.jld2")
 
-# Find all times where resonances occur
-resonance_speed(n) = (2 * data.ωmax * data.α) / ((2 * n) + 1)
-(all_τs, σdots) = particle_speed(data)
-res_times = [findall(x -> isapprox(x, ii, atol = 0.01) == true, σdots) for ii in resonance_speed.(10:15)]
-
-δ = data.τs[2] - data.τs[1]
-
-τ_max = 125
+τ_max = 125                 # Maximum time plotted
 idx = findall(data.τs .< τ_max)
 τs = data.τs[idx]
 rr = reduce(hcat, [data.ρs[ii, idx] .- ii * data.α for ii = 1:size(data.ρs)[1]])
 
-mx = maximum(abs.(rr)) / 1
-mx = 0.2
+mx = maximum(abs.(rr))      # Colorbar limits
+
+# Heatmap
 hm = heatmap!(
     ax1,
     τs[1:step_size:end],
@@ -44,14 +29,11 @@ hm = heatmap!(
     colormap = :RdBu,
     colorrange = (-mx, mx),
 )
+
+# Particle trajectory
 lines!(ax1, data.τs, [x[1] for x in data.σs] |> vec, color = my_black, linewidth = 5)
 
-# for ii in last.(res_times)
-#     lines!(ax1, (0:0.1:30) .+ all_τs[ii], π * data.α * (data.ωmax - 1) * (0:0.1:30) .+ data.σs[ii], color = my_sky, linestyle = :dash, linewidth = 4)
-#
-#     lines!(ax1, (0:0.1:10) .+ all_τs[ii], -π * data.α * (data.ωmax - 1) * (0:0.1:10) .+ data.σs[ii], color = my_sky, linestyle = :dash, linewidth = 4)
-# end
-
+# Sound cone
 lines!(
     ax1,
     0:0.1:10,
@@ -60,26 +42,28 @@ lines!(
     linewidth = 4,
     linestyle = :dash,
 )
+
+# Colorbar
 Colorbar(fig[1, 2], hm; label = L"\Delta\rho", width = 15, ticksize = 15, tickalign = 1)
 xlims!(ax1, (0, 125))
 ylims!(ax1, (0, 10000))
-# # ATTRACTIVE
 
+
+## ATTRACTIVE
+
+# Load data
 data = load_object(
     "data/non_thermal/Single_sigma0[220]_sigmadot0[120]_MemInf_lambda4_Phi-20_mu1_d60_bias0.0_omegaTnothing_tau125.jld2",
 )
-# Find all times where resonances occur
-resonance_speed(n) = (2 * data.ωmax * data.α) / ((2 * n) + 1)
-(all_τs, σdots) = particle_speed(data)
-res_times = [findall(x -> isapprox(x, ii, atol = 0.004) == true, σdots) for ii in resonance_speed.(8:15)]
 
-δ = data.τs[2] - data.τs[1]
-τ_max = 125
+τ_max = 125                 # Maximum time plotted
 idx = findall(data.τs .< τ_max)
 τs = data.τs[idx]
 rr = reduce(hcat, [data.ρs[ii, idx] .- ii * data.α for ii = 1:size(data.ρs)[1]])
-mx = 0.2
-# mx = maximum(abs.(rr)) / 3
+
+mx = maximum(abs.(rr))      # Colorbar limits
+
+# Heatmap
 hm = heatmap!(
     ax2,
     τs[1:step_size:end],
@@ -88,14 +72,11 @@ hm = heatmap!(
     colormap = :RdBu,
     colorrange = (-mx, mx),
 )
+
+# Particle trajectory
 lines!(ax2, data.τs, [x[1] for x in data.σs] |> vec, color = my_black, linewidth = 5)
 
-# for ii in first.(res_times)
-#     lines!(ax2, (0:0.1:30) .+ all_τs[ii], π * data.α * (data.ωmax - 1) * (0:0.1:30) .+ data.σs[ii], color = my_sky, linestyle = :dash, linewidth = 4)
-#
-#     lines!(ax2, (0:0.1:10) .+ all_τs[ii], -π * data.α * (data.ωmax - 1) * (0:0.1:10) .+ data.σs[ii], color = my_sky, linestyle = :dash, linewidth = 4)
-# end
-
+# Sound cone
 lines!(
     ax2,
     0:0.1:10,
@@ -104,9 +85,11 @@ lines!(
     linewidth = 4,
     linestyle = :dash,
 )
-Colorbar(fig[2, 2], hm; label = L"\Delta\rho", width = 15, ticksize = 15, tickalign = 1)
 
+# Colorbar
+Colorbar(fig[2, 2], hm; label = L"\Delta\rho", width = 15, ticksize = 15, tickalign = 1)
 xlims!(ax2, (0, 125))
 ylims!(ax2, (0, 10000))
-fig
-# save("General_Example.pdf", fig)
+
+# Save figure
+save("General_Example.pdf", fig)

@@ -77,9 +77,8 @@ nChain = 100
 tTraj = ThermalTrajectory(system.ωmax, system.δ, ρHs, nothing)
 mem = Inf
 
-speeds = range(20, 20, step = 2)
+speeds = range(20, 50, step = 2)
 bias = 0.0
-# bias = 0.175
 
 param_vals = vcat(map(ii -> [(2, 4, [ii]), (-2, 4, [ii])], speeds)...)
 

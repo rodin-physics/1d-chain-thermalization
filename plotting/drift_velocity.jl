@@ -1,5 +1,4 @@
 include("../src/main.jl")
-
 # Parameters
 α = 40
 μ = 1
@@ -9,13 +8,11 @@ nChain = 10
 λ = 4.0
 bias = 0.01
 
-
-
-## Bias drift calculation
+# Bias drift calculation
 xs = range(1,90, step = 0.001)
-# Δ_bias = Δ_transport.(xs, Φ0, λ, ωmax, α)
+Δ_bias = Δ_transport.(xs, Φ0, λ, ωmax, α)
 
-
+## Plotting
 fig = Figure(resolution = (1800, 1000), font = "CMU Serif", fontsize = 32, figure_padding = 30)
 
 ax1_top = fig[1,1] = Axis(fig, title = "Repulsive")
@@ -27,14 +24,20 @@ ax2 = fig[2,2] = Axis(fig, xlabel = L"\tau")
 ax3_top = fig[1,3] = Axis(fig)
 ax3 = fig[2,3] = Axis(fig, xlabel = L"\bar{\Delta}", ylabel = L"\dot{\sigma}")
 
+
+# Predicted drift velocities
 hlines!(ax1, [α/n for n in 1:20], linewidth = 2, linestyle = :dash, color = my_black)
 hlines!(ax1_top, [α/n for n in 1:20], linewidth = 2, linestyle = :dash, color = my_black)
-hlines!(ax1, [sqrt(8*Φ0*π^2)], linewidth = 2, color = my_red, linestyle = :dash, label = "Capture speed")
 
 hlines!(ax2, [α/n for n in 1:20], linewidth = 2, linestyle = :dash, color = my_black)
 hlines!(ax2_top, [α/n for n in 1:20], linewidth = 2, linestyle = :dash, color = my_black)
 
 hlines!(ax3, [α/n for n in 1:20], linewidth = 2, linestyle = :dash, color = my_black)
+
+# Capture speed
+hlines!(ax1, [sqrt(8*Φ0*π^2)], linewidth = 2, color = my_red, linestyle = :dash, label = "Capture speed")
+
+# Bias value
 vlines!(ax3, [bias], linewidth = 3, color = my_black, label = "Bias")
 
 # Read in full trajectories
@@ -58,14 +61,11 @@ end
 
 
 hidexdecorations!(ax1_top)
-# hideydecorations!(ax1_top, ticklabels=false)
 xlims!(ax1_top, 0.0, 800.0)
 ylims!(ax1_top, 86.0, 86.9)
 ax1_top.yticks = 86:1:90
 
 
-# hideydecorations!(ax1, ticklabels=false)
-# hidexdecorations!(ax1, ticklabels=false)
 xlims!(ax1, 0.0, 800.0)
 ylims!(ax1, 0.0, 56.0)
 ax1.yticks = 0:10:52
@@ -78,10 +78,9 @@ ax1.topspinevisible=false
 
 hidexdecorations!(ax2_top)
 hideydecorations!(ax2_top)
-# ax2_top.yticks = 90:2:96
+
 
 hideydecorations!(ax2)
-# hidexdecorations!(ax2, ticklabels=false)
 ax2_top.bottomspinevisible=false
 ax2.topspinevisible=false
 ax2.xticks = 200:200:800
@@ -100,8 +99,6 @@ hidexdecorations!(ax3_top)
 hideydecorations!(ax3_top, ticklabels=false)
 ax3_top.yticks = 86:1:87
 
-# hideydecorations!(ax3, ticklabels=false)
-# hidexdecorations!(ax3, ticklabels=false)
 ax3_top.bottomspinevisible=false
 ax3.topspinevisible=false
 ax3.yticks = 0:10:60
@@ -114,4 +111,4 @@ ylims!(ax3_top, 86.0, 86.9)
 axislegend(ax1, labelsize = 30, position = :rb)
 axislegend(ax3, labelsize = 30, position = :rb)
 
-fig
+save("Drift_Velocities.pdf", fig)

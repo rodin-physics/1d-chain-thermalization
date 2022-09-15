@@ -8,6 +8,7 @@ times = [1, 5, 10, 15]
 colors = [my_vermillion, my_green, my_sky, my_blue]
 speed = (ωmax - 1) / 2 * 2 * π
 
+## Plotting 
 fig = Figure(resolution = (600, 400), font = "CMU Serif", fontsize = 18)
 ax1 = Axis(fig[1, 1], ylabel = L"\Gamma_n(\tau)", xlabel = L"n")
 for ii = 1:length(times)
@@ -31,42 +32,5 @@ end
 xlims!(ax1, (-0.05, 500))
 ylims!(ax1, (-0.1, 0.1))
 axislegend(ax1, position = :rb, labelsize = 18, nbanks = 4)
-fig
+
 save("Pulse_Propagation.pdf", fig)
-
-
-ωmax = 10
-τ_max = 10
-n_Pts = 2500
-times = range(0, τ_max, length = n_Pts)
-ls = [0, 20]
-Γs = [Γ(τ, ls, ωmax) for τ in times]
-colors = [my_vermillion, my_green, my_sky, my_blue]
-# speed = (ωmax - 1) / 2 * 2 * π
-
-fig = Figure(resolution = (600, 400), font = "CMU Serif", fontsize = 18)
-ax1 = Axis(fig[1, 1], ylabel = L"\Gamma_n(\tau)", xlabel = L"\tau")
-for ii = 1:length(ls)
-    sc = lines!(
-        ax1,
-        times,
-        [x[ii] for x in Γs],
-        markersize = 5,
-        color = colors[ii],
-        label = L"n = %$(ls[ii])",
-        linewidth = 1,
-    )
-
-    # ln = vlines!(
-    #     ax1,
-    #     times[ii] * [speed],
-    #     linewidth = 2,
-    #     linestyle = :dash,
-    #     color = [colors[ii]],
-    # )
-end
-# xlims!(ax1, (-0.05, 500))
-# ylims!(ax1, (-0.1, 0.1))
-axislegend(ax1, position = :rt, labelsize = 18)
-fig
-save("Gamma.pdf", fig)
