@@ -13,6 +13,7 @@ using ToeplitzMatrices
 using Roots
 using KernelDensity
 using DelimitedFiles
+using HCubature
 
 ## Parameters
 η = 1e-12                       # Small number
@@ -68,14 +69,14 @@ function Γ(τ, ls, ωmax)
     return (res[1] * 2 / π)
 end
 
-# Correlation function
-function pos_corr(τ, l, ωT, ωmax)
-    int_fun(x) =
-        cos(2 * x * l) * coth(ω(ωmax, x) / 2 / ωT) *
-        cos(2 * π * τ * ω(ωmax, x)) / ω(ωmax, x)
-    res = quadgk(int_fun, 0, π / 2)
+
+# Covariance matrix between chain mass displacements
+function C_corr(τ, ls, ωmax, ωT)
+    int_fun(x) = cos.(2 * x * ls) * cos(2 * π * τ * ω(ωmax, x)) / ω(ωmax, x) * coth(ω(ωmax, x) / 2 / ωT)
+    res = quadgk(int_fun, 0, π / 2, atol=1e-8)
     return (res[1] / π)
 end
+
 
 # Precompute recoil term and take existing files into account
 function mkChainSystem(ωmax, τ_max, lmax, d, Γ_prev)
@@ -222,20 +223,21 @@ function motion_solver(
     tTraj::ThermalTrajectory,
     τ0::T where {T<:Real},
     τ::T where {T<:Real};
-    threads::Bool=false,
+    threads::Bool = false,
     bias::T where {T<:Real} = 0,
-    hold::T where {T<:Real} = 0
+    box::Tuple{T,T} where {T<:Real} = (-Inf, Inf),
+    periodic::Bool = false,
 )
     ωmax = system.ωmax              # Maximum chain frequency
-    δ = system.δ                    # Time step
     Γ_mat = system.Γ                # Memory term
+    δ = system.δ                    # Time step
     n_pts = floor(τ / δ) |> Int     # Number of time steps
     τs = δ .* (1:n_pts) |> collect  # Times
     nChain = size(tTraj.ρHs)[1]     # Number of chain particles for which the homogeneous motion is available
-    τ0_pts = max(floor(τ0 / δ), 1)  # Memory time points
     F_bias = bias / α               # Force due to the bias
+    τ0_pts = max(floor(τ0 / δ), 1)  # Memory time points
     # Even if τ0 == 0, we have to keep a single time point to make sure arrays work.
-    # For zero memory, the recoil contribution is dropped (see line 156)
+    # For zero memory, the recoil contribution is dropped
 
     # Check that the thermal trajectory is for the correct system
     if (ωmax != tTraj.ωmax || δ != tTraj.δ)
@@ -256,7 +258,7 @@ function motion_solver(
         σs = zeros(length(σ0), n_pts)
         τ0_pts = min(τ0_pts, n_pts) |> Int
         Γ_mat = (2 * π * δ) .* Γ_mat[1:nChain, 1:τ0_pts]
-        Γ_mat = vcat(reverse(Γ_mat, dims=1)[1:end-1, :], Γ_mat)
+        Γ_mat = vcat(reverse(Γ_mat, dims = 1)[1:end-1, :], Γ_mat)
 
     end
     # Interaction terms
@@ -266,71 +268,66 @@ function motion_solver(
     ## Initial values
     σs[:, 1] = σ0
     σs[:, 2] = σ0 + δ .* σ_dot0
-    mass_flag = false
+    σ_dot = σ_dot0
+    U_pr = zeros(nChain, length(σ0))
+    # for ii = 3:n_pts
+    @showprogress for ii = 3:n_pts
+        nxt = ii        # Next time step index
+        curr = ii - 1   # Current time step index
+        # Calculate the forces on all the masses
+        U_pr = [dU_dρ(ρ - σ) for ρ in ρs[:, curr], σ in σs[:, curr]]
+        U_pr_chain = sum(U_pr, dims = 2) |> vec
+        U_pr_mob = -sum(U_pr, dims = 1) |> vec
+        # Find the indices of the chain masses where the force is larger than ϵ
+        idx = findall(x -> abs(x) > ϵ, U_pr_chain)
 
-    if threads == true
-        @showprogress for ii = 3:n_pts
-            nxt = ii        # Next time step index
-            curr = ii - 1   # Current time step index
-            # Calculate the forces on all the masses
-            U_pr = [dU_dρ(ρ - σ) for ρ in ρs[:, curr], σ in σs[:, curr]]
-            U_pr_chain = sum(U_pr, dims=2) |> vec
-            U_pr_mob = -sum(U_pr, dims=1) |> vec
-            # Find the indices of the chain masses where the force is larger than ϵ
-            idx = findall(x -> abs(x) > ϵ, U_pr_chain)
-            # For each of the impulses, get the appropriate slice of Γ_mat, multiply
-            # it by the impulse and use the result to modify the chain positions
-            steps_left = n_pts - curr
-            steps_per_thread = steps_left ÷ Threads.nthreads()
+        σs[:, nxt] =
+            σs[:, curr] +
+            δ .* σ_dot +
+            -(2 * π * δ)^2 / μ .* (U_pr_mob - F_bias .* ones(length(σ0)))
+
+        σ_dot = (σs[:, nxt] - σs[:, curr]) / δ
+
+        if periodic
+            for particle in eachindex(σ_dot)
+                if (σs[particle, nxt] < box[1])
+                    σs[particle, nxt] += (box[2] - box[1])
+                elseif (σs[particle, nxt] > box[2])
+                    σs[particle, nxt] -= (box[2] - box[1])
+                end
+            end
+
+        else 
+            for particle in eachindex(σ_dot)
+                if (σs[particle, nxt] < box[1] || σs[particle, nxt] > box[2])
+                    σ_dot[particle] = -σ_dot[particle]
+                end
+            end
+        end
+
+        steps_left = n_pts - curr               # Number of time steps remaining
+        step_memory = min(τ0_pts, steps_left)   # Number of steps for which ρs are affected by the impulse
+        if threads == true
+            steps_per_thread = step_memory ÷ Threads.nthreads() + 1
             step_alloc = [
-                (x*(steps_per_thread+1)+1):min(
-                    steps_left,
-                    (x + 1) * (steps_per_thread + 1),
-                ) for x = 0:Threads.nthreads()-1
+                (x*steps_per_thread+1):min(step_memory, (x + 1) * steps_per_thread) for
+                x = 0:Threads.nthreads()-1
             ]
             Threads.@threads for t = 1:Threads.nthreads()
                 for n in idx
                     view(ρs, :, curr .+ step_alloc[t]) .-=
-                        view(Γ_mat, nChain-n+1:2*nChain-n, step_alloc[t]) .* U_pr_chain[n]
+                        view(Γ_mat, nChain-n+1:2*nChain-n, step_alloc[t]) .*
+                        U_pr_chain[n] .* (τ0 != 0)
                 end
             end
-
-            if hold == 0 || (τs[ii] >= hold && isapprox(mod.(σs[:, curr], α), repeat([α/2], length(σs[:, curr])), rtol = 1e-3)) || mass_flag == true
-                mass_flag = true
-                σs[:, nxt] = -(2 * π * δ)^2 / μ .* U_pr_mob + 2 .* σs[:, curr] - σs[:, curr-1] +
-                         (2 * π * δ)^2 / μ * F_bias .* ones(length(σ0))
-            else
-                σs[:, nxt] = 2 .* σs[:, curr] - σs[:, curr-1]
-            end
-        end
-    else
-        @showprogress for ii = 3:n_pts
-            nxt = ii        # Next time step index
-            curr = ii - 1   # Current time step index
-            # Calculate the forces on all the masses
-            U_pr = [dU_dρ(ρ - σ) for ρ in ρs[:, curr], σ in σs[:, curr]]
-            U_pr_chain = sum(U_pr, dims=2) |> vec
-            U_pr_mob = -sum(U_pr, dims=1) |> vec
-            # Find the indices of the chain masses where the force is larger than ϵ
-            idx = findall(x -> abs(x) > ϵ, U_pr_chain)
-            # For each of the impulses, get the appropriate slice of Γ_mat, multiply
-            # it by the impulse and use the result to modify the chain positions
+        else
             for n in idx
-                Γ_curr = view(Γ_mat, nChain-n+1:2*nChain-n, 1:min(τ0_pts, n_pts - ii + 1))
-                ρs_upd = view(ρs, :, nxt:nxt+size(Γ_curr)[2]-1)
-                ρs_upd .-= Γ_curr .* U_pr_chain[n]
-            end
-
-            if hold == 0 || (τs[ii] >= hold && isapprox(mod.(σs[:, curr], α), repeat([α/2], length(σs[:, curr])), rtol = 0.01)) || mass_flag == true
-                mass_flag = true
-                σs[:, nxt] = -(2 * π * δ)^2 / μ .* U_pr_mob + 2 .* σs[:, curr] - σs[:, curr-1] +
-                         (2 * π * δ)^2 / μ * F_bias .* ones(length(σ0))
-            else
-                σs[:, nxt] = 2 .* σs[:, curr] - σs[:, curr-1]
+                view(ρs, :, curr .+ (1:step_memory)) .-=
+                    view(Γ_mat, nChain-n+1:2*nChain-n, 1:step_memory) .* U_pr_chain[n] .*
+                    (τ0 != 0)
             end
         end
     end
-
     return SystemSolution(ωmax, μ, τs, τ0, α, Φ0, λ, σs, ρs, bias, tTraj.ωT)
 end
 
@@ -405,7 +402,7 @@ function Δ_transport_broadened(v, Φ, λ, Ω, α, μ)
 
     # Obtain weighted sum of Deltabar solutions
     vals = 0
-    for ii in 1:length(v_range)
+    for ii in eachindex(v_range)
         sols = find_zeros(x -> ω(Ω, π*x) + x*(v_range[ii]/α), -Ω*α/v_range[ii], 0, no_pts = 60)
         ωprime(x) = π*sin(π*x)*cos(π*x)*(Ω^2 -1)/ω(Ω, π*x)
 
@@ -415,4 +412,46 @@ function Δ_transport_broadened(v, Φ, λ, Ω, α, μ)
     end
 
     return (vals/sum(kde_data.density))
+end
+
+
+# Mean Delta with thermal fluctuations 
+function Δ_thermal_analytic(v, Φ, λ, Ω, ωT)
+    factor = π^2*λ^2*Φ^2*√(π) / v / 2
+
+    C_NN_func(τ) = C_corr(τ, 0, Ω, ωT)
+    # C_NN_func(τ) = 0
+
+    int_func(θ, τ) = exp(2im * π * τ * ω(Ω, θ)) * 
+                    exp(-v^2 * τ^2 / (λ^2 + Complex(C_NN_func(0) - C_NN_func(τ))) / 4) * 
+                    (2(λ^2 + Complex(C_NN_func(0) - C_NN_func(τ))) - v^2*τ^2) / 
+                    (λ^2 + Complex(C_NN_func(0) - C_NN_func(τ)))^(5/2)
+
+    function integrand(x)
+        f1(τ) = int_func(x,τ)
+        (sol, err)  = quadgk(f1, -10, 10, atol = 1e-8)
+        return sol
+    end
+                    
+    τlim = min(30 / v, 3)
+    res = hcubature(x -> int_func(x[1], x[2]), [0, -τlim], [π/2, τlim], rtol = 1e-2)
+
+    return factor*res[1]*2/π |> real
+end
+
+
+# Delta variance with thermal fluctuations
+function Δ_thermal_variance(v, Φ, λ, Ω, ωT)
+    factor = v * Φ^2 * λ^2 * √(π) / 4
+
+    C_NN_func(τ) = C_corr(τ, 0, Ω, ωT)
+
+    int_func(τ) = exp(-v^2 * τ^2 / (λ^2 + Complex(C_NN_func(0) - C_NN_func(τ))) / 4) * 
+                (2(λ^2 + Complex(C_NN_func(0) - C_NN_func(τ))) - v^2*τ^2) / 
+                (λ^2 + Complex(C_NN_func(0) - C_NN_func(τ)))^(5/2)
+
+
+    res = quadgk(int_func, -10, 10, atol = 1e-8)
+    
+    return factor*res[1] |> real
 end

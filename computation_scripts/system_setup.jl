@@ -52,33 +52,33 @@ precompute(ωmax, τmax, lmax, d)
 # precompute(ωmax, τmax, lmax, d)
 
 # println("Calculating thermal trajectories")
-# ## Precompute the thermal trajectories
-# τmax = 200                         # Simulation time
-# δ = (1 / ωmax) / d              # Time step
-# n_pts = floor(τmax / δ) |> Int  # Number of time steps given t_max and δ
-# n_modes = 10000                  # Number of chain masses for simulating ρ0
-#
-# qa_s = 2 * pi .* (1:n_modes) / n_modes
-# ωs = ω.(ωmax, qa_s ./ 2)
-#
-# Random.seed!(150)
-# ϕs = 2 * π * rand(n_modes)
-#
-# # Range of temperatures
-# ωTs = [5.0]
-#
-# for ωT in ωTs
-#     println("ωT is ", ωT)
-#     ζs = ζq.(ωs, ωT)
-#
-#     if (!isfile("precomputed/rH/rH_ωmax$(ωmax)_d$(d)_ωT$(ωT)_τ$(τmax).jld2"))
-#         # Populate each row of matrix
-#         gs = collect(1:lmax)
-#         full_res = @showprogress pmap(n -> real(ρH(n, δ, ζs, ϕs, ωs, gs)), 1:n_pts)
-#         full_res = reduce(hcat, full_res)
-#
-#         res = ThermalTrajectory(ωmax, δ, full_res, ωT)
-#         save_object("precomputed/rH/rH_ωmax$(ωmax)_d$(d)_ωT$(ωT)_τ$(τmax).jld2", res)
-#     end
-#
-# end
+## Precompute the thermal trajectories
+τmax = 200                         # Simulation time
+δ = (1 / ωmax) / d              # Time step
+n_pts = floor(τmax / δ) |> Int  # Number of time steps given t_max and δ
+n_modes = 10000                  # Number of chain masses for simulating ρ0
+
+qa_s = 2 * pi .* (1:n_modes) / n_modes
+ωs = ω.(ωmax, qa_s ./ 2)
+
+Random.seed!(150)
+ϕs = 2 * π * rand(n_modes)
+
+# Range of temperatures
+ωTs = [5.0]
+
+for ωT in ωTs
+    println("ωT is ", ωT)
+    ζs = ζq.(ωs, ωT)
+
+    if (!isfile("precomputed/rH/rH_ωmax$(ωmax)_d$(d)_ωT$(ωT)_τ$(τmax).jld2"))
+        # Populate each row of matrix
+        gs = collect(1:lmax)
+        full_res = @showprogress pmap(n -> real(ρH(n, δ, ζs, ϕs, ωs, gs)), 1:n_pts)
+        full_res = reduce(hcat, full_res)
+
+        res = ThermalTrajectory(ωmax, δ, full_res, ωT)
+        save_object("precomputed/rH/rH_ωmax$(ωmax)_d$(d)_ωT$(ωT)_τ$(τmax).jld2", res)
+    end
+
+end
