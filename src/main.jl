@@ -205,11 +205,22 @@ end
 
 # Homogeneous displacement of the chain atom g at time step n given a set of ωs
 # and the corresponding ζs and ϕs as a sum of normal coordinates.
-function ρH(n, δ, ζs, ϕs, ωs, gs)
+# function ρH(n, δ, ζs, ϕs, ωs, gs)
+#     n_ζ = length(ζs)
+#     f = transpose(exp.(-1im * (2 * π * δ * n * ωs + ϕs)) / √(n_ζ) .* ζs)
+#     r = [f * exp.(1im * 2 * π / n_ζ .* (1:n_ζ) * g) for g in gs]
+#     return r
+# end
+
+# Homogeneous displacement of the chain atoms at time τ given a set of ωs
+# and the corresponding ζs and ϕs
+function ρH(τ, ζs, ϕs, ωs, ε)
     n_ζ = length(ζs)
-    f = transpose(exp.(-1im * (2 * π * δ * n * ωs + ϕs)) / √(n_ζ) .* ζs)
-    r = [f * exp.(1im * 2 * π / n_ζ .* (1:n_ζ) * g) for g in gs]
-    return r
+    # Get the displacement of each mode ζ
+    f = transpose(exp.(-1im * (2 * π * τ * ωs + ϕs)) / √(n_ζ) .* ζs)
+    # Multiply vector of ζ's by the polarization matrix ε
+    res = f * ε
+    return res
 end
 
 function motion_solver(
@@ -345,6 +356,133 @@ function Δ_analytic(v, Φ, λ, Ω)
     )
 end
 
+function motion_solver_test(
+    system::ChainSystem,
+    Φ0::T where {T<:Real},
+    λ::T where {T<:Real},
+    α::T where {T<:Real},
+    σ0::Vector{T} where {T<:Real},
+    σ_dot0::Vector{T} where {T<:Real},
+    μ::T where {T<:Real},
+    tTraj::ThermalTrajectory,
+    τ0::T where {T<:Real},
+    τ::T where {T<:Real};
+    threads::Bool = false,
+    bias::T where {T<:Real} = 0,
+    box::Tuple{T,T} where {T<:Real} = (-Inf, Inf),
+    periodic::Bool = false,
+    check_stuck::Bool = false,
+)
+    ωmax = system.ωmax              # Maximum chain frequency
+    Γ_mat = system.Γ                # Memory term
+    δ = system.δ                    # Time step
+    n_pts = floor(τ / δ) |> Int     # Number of time steps
+    τs = δ .* (1:n_pts) |> collect  # Times
+    nChain = size(tTraj.ρHs)[1]     # Number of chain particles for which the homogeneous motion is available
+    F_bias = bias / α               # Force due to the bias
+    τ0_pts = max(floor(τ0 / δ), 1)  # Memory time points
+    # Even if τ0 == 0, we have to keep a single time point to make sure arrays work.
+    # For zero memory, the recoil contribution is dropped
+
+    # Check that the thermal trajectory is for the correct system
+    if (ωmax != tTraj.ωmax || δ != tTraj.δ)
+        error("Thermal trajectory describes a different system. Check your input.")
+    elseif size(tTraj.ρHs)[2] < n_pts
+        error("Thermal trajectory provided does not span the necessary time range.")
+        # If the precomputed memory is shorter than the simulation time AND shorter
+        # than the desired memory, terminate the calculation.
+    elseif (size(Γ_mat)[2] < n_pts && size(Γ_mat)[2] < τ0_pts)
+        error("Chosen memory and the simulation time exceed the precomputed recoil.")
+        # If the desired number of chain particles is greater than what is contained in
+        # the precomputed Γ, terminate the calculation. Otherwise, retain the appropriate
+        # number of terms
+    elseif (size(Γ_mat)[1] < nChain)
+        error("The recoil term does not contain the desired number of chain masses.")
+    else
+        ρs = (tTraj.ρHs)[:, 1:n_pts] .+ α .* repeat(1:size(tTraj.ρHs)[1], 1, n_pts)
+        σs = zeros(length(σ0), n_pts)
+        τ0_pts = min(τ0_pts, n_pts) |> Int
+        Γ_mat = (2 * π * δ) .* Γ_mat[1:nChain, 1:τ0_pts]
+        Γ_mat = vcat(reverse(Γ_mat, dims = 1)[1:end-1, :], Γ_mat)
+
+    end
+    # Interaction terms
+    @inline function dU_dρ(r)
+        return (-Φ0 * exp(-r^2 / (2 * λ^2)) * r / λ^2)
+    end
+    ## Initial values
+    σs[:, 1] = σ0
+    σs[:, 2] = σ0 + δ .* σ_dot0
+    σ_dot = σ_dot0
+    U_pr = zeros(nChain, length(σ0))
+    final_ind = n_pts
+    # for ii = 3:n_pts
+    for ii = 3:n_pts
+        nxt = ii        # Next time step index
+        curr = ii - 1   # Current time step index
+
+        if check_stuck && σ_dot[1] < 0.0
+            final_ind = curr
+            break
+        end
+
+        # Calculate the forces on all the masses
+        U_pr = [dU_dρ(ρ - σ) for ρ in ρs[:, curr], σ in σs[:, curr]]
+        U_pr_chain = sum(U_pr, dims = 2) |> vec
+        U_pr_mob = -sum(U_pr, dims = 1) |> vec
+        # Find the indices of the chain masses where the force is larger than ϵ
+        idx = findall(x -> abs(x) > ϵ, U_pr_chain)
+
+        σs[:, nxt] =
+            σs[:, curr] +
+            δ .* σ_dot +
+            -(2 * π * δ)^2 / μ .* (U_pr_mob - F_bias .* ones(length(σ0)))
+
+        σ_dot = (σs[:, nxt] - σs[:, curr]) / δ
+
+        if periodic
+            for particle in eachindex(σ_dot)
+                if (σs[particle, nxt] < box[1])
+                    σs[particle, nxt] += (box[2] - box[1])
+                elseif (σs[particle, nxt] > box[2])
+                    σs[particle, nxt] -= (box[2] - box[1])
+                end
+            end
+
+        else 
+            for particle in eachindex(σ_dot)
+                if (σs[particle, nxt] < box[1] || σs[particle, nxt] > box[2])
+                    σ_dot[particle] = -σ_dot[particle]
+                end
+            end
+        end
+
+        steps_left = n_pts - curr               # Number of time steps remaining
+        step_memory = min(τ0_pts, steps_left)   # Number of steps for which ρs are affected by the impulse
+        if threads == true
+            steps_per_thread = step_memory ÷ Threads.nthreads() + 1
+            step_alloc = [
+                (x*steps_per_thread+1):min(step_memory, (x + 1) * steps_per_thread) for
+                x = 0:Threads.nthreads()-1
+            ]
+            Threads.@threads for t = 1:Threads.nthreads()
+                for n in idx
+                    view(ρs, :, curr .+ step_alloc[t]) .-=
+                        view(Γ_mat, nChain-n+1:2*nChain-n, step_alloc[t]) .*
+                        U_pr_chain[n] .* (τ0 != 0)
+                end
+            end
+        else
+            for n in idx
+                view(ρs, :, curr .+ (1:step_memory)) .-=
+                    view(Γ_mat, nChain-n+1:2*nChain-n, 1:step_memory) .* U_pr_chain[n] .*
+                    (τ0 != 0)
+            end
+        end
+    end
+    return SystemSolution(ωmax, μ, τs[1:final_ind], τ0, α, Φ0, λ, σs[:, 1:final_ind], ρs[:, 1:final_ind], bias, tTraj.ωT)
+end
+
 # Calculate energy losses along a full trajectory
 function Δ_traj(data)
     δ = data.τs[2] - data.τs[1]
@@ -357,6 +495,60 @@ function Δ_traj(data)
 
     # Find the indices halfway between chain masses as chain moves
     idx = [argmin(abs.(σs .- (ρs[n, :] .+ (0.5 * data.α)))) for n in chain_idx:max_lattice_pos]
+    idx = filter(x -> x <= length(σs) - 1, idx)
+
+    # Get speeds at these points and corresponding times
+    σ_dots = (σs[idx.+1] - σs[idx]) ./ δ
+    τs = data.τs[idx]
+
+    # Get the kinetic energy and filter out energies less that potential height
+    KE = 0.5 * data.μ * (σ_dots ./ 2 ./ π) .^ 2
+    idx = findall(x -> x > data.Φ, KE)
+    KE = KE[idx]
+    σ_dots = σ_dots[idx]
+    Δs = KE[1:end-1] - KE[2:end]
+    return (σ_dots[1:end-1], Δs)
+end
+
+## Unfold particle trajectories given a confining box
+function traj_unfold(data, box; periodic = false)
+    σs_final = copy(data.σs)
+    num_P = size(data.σs, 1)
+
+    for particle in 1:num_P
+        if periodic 
+            for st in 2:lastindex(σs_final[particle, :])
+                if (σs_final[particle, st] - σs_final[particle, st-1]) > 0.9 * (box[2] - box[1])
+                    σs_final[particle, st:end] = σs_final[particle, st:end] .- (box[2] - box[1])
+                elseif (σs_final[particle, st] - σs_final[particle, st-1]) < -0.9 * (box[2] - box[1])
+                    σs_final[particle, st:end] = σs_final[particle, st:end] .+ (box[2] - box[1])
+                end
+            end
+        else 
+            τ_ids = findall(x -> x < box[1] || x > box[2], σs_final[particle,:])
+
+            for τ_id in τ_ids
+                σs_final[particle, (τ_id+1):end] = 2 * σs_final[particle, τ_id] .- σs_final[particle, (τ_id+1):end]
+            end
+        end
+        σs_final[particle,:] = σs_final[particle,:] .- σs_final[particle,1]
+    end
+
+    return σs_final
+end
+
+
+# Calculate energy losses along a full trajectory
+function Δ_traj_unfold(data, box; periodic = false)
+    δ = data.τs[2] - data.τs[1]
+    σs = traj_unfold(data, box, periodic = periodic) |> vec
+
+    # Find the chain indices where the mobile particle starts and ends
+    chain_idx = searchsortedlast(data.ρs[:,1], σs[1])
+    max_lattice_pos = maximum(σs) / data.α |> floor |> Int
+
+    # Find the indices halfway between chain masses as chain moves
+    idx = [argmin(abs.(σs .- (n * 0.5 * data.α))) for n in chain_idx:max_lattice_pos]
     idx = filter(x -> x <= length(σs) - 1, idx)
 
     # Get speeds at these points and corresponding times

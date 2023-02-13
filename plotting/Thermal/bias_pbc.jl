@@ -1,11 +1,11 @@
 include("../../src/main.jl")
 
 ## Parameters
-α = 10
+α = 40
 μ = 1
 ωmax = 10
 Φ0 = 2.0
-λ = 1.0
+λ = 4.0
 τ = 150
 # ωTs = reverse([0.0, 5.0, 25.0, 100.0, 250.0])
 ωTs = reverse([1.0, 5.0, 10.0, 25.0, 100.0])
@@ -86,6 +86,33 @@ bias_val = 0.07
 #     end
 # end
 
+
+# Finite speeds with bias with newly generated tTrajs
+
+## Precompute the thermal trajectories
+d = 60
+τmax = 150                     # Simulation time
+δ = (1 / ωmax) / d              # Time step
+n_pts = floor(τmax / δ) |> Int  # Number of time steps given t_max and δ
+n_modes = 5000                 # Number of chain masses for simulating ρ0
+
+qa_s = 2 * pi .* (1:n_modes) / n_modes
+ωs = ω.(ωmax, qa_s ./ 2)
+lmax = 300
+ε = reduce(hcat, [exp.(1im * 2 * π / n_modes .* (1:n_modes) * g) for g = 1:lmax])
+
+ωT = 5.0
+speed_range = range(15, 60, step = 5.0)
+
+for tTraj_path in tTraj_paths
+tTraj = load_object(tTraj_path)
+    for speed in range(10, 60, step = 10)
+        σdot0 = [speed]
+        data = motion_solver(system, Φ0, λ, α, σ0, σdot0, μ, tTraj, 10, τ; threads = true, box = box, periodic = true, bias = bias_val)
+        save_object("data/Thermal/Bias/Bias$(bias_val)_speed$(speed)_ωT$(tTraj.ωT)_mem10.jld2", data)
+    end
+end
+
 nParticles = 25
 ## Zero speed with bias 
 # for tTraj_path in tTraj_paths
@@ -98,19 +125,19 @@ nParticles = 25
 # end
     
 
-fig = Figure(resolution = (1600, 1200), font = "CMU Serif", fontsize = 36, figure_padding = 40)
-ax1 = Axis(fig[1, 1], xlabel = L"\tau", ylabel = L"\dot{\sigma}", title = L"\Phi = %$(Φ0), \, \lambda = %$(λ), \, \alpha = %$(α), \, \mathrm{Bias} = %$(bias_val)")
+# fig = Figure(resolution = (1600, 1200), font = "CMU Serif", fontsize = 36, figure_padding = 40)
+# ax1 = Axis(fig[1, 1], xlabel = L"\tau", ylabel = L"\dot{\sigma}", title = L"\Phi = %$(Φ0), \, \lambda = %$(λ), \, \alpha = %$(α), \, \mathrm{Bias} = %$(bias_val)")
 
-for speed in range(10, 60, step = 10)
-    data = load_object("data/Thermal/Bias/Bias$(bias_val)_speed$(speed)_ωT25.0_memInf.jld2")
-    lines!(ax1, data.τs[2:end], vec(particle_speed(data, unfold = true, box = box, periodic = true)))
-end
+# for speed in range(10, 60, step = 10)
+#     data = load_object("data/Thermal/Bias/Bias$(bias_val)_speed$(speed)_ωT25.0_memInf.jld2")
+#     lines!(ax1, data.τs[2:end], vec(particle_speed(data, unfold = true, box = box, periodic = true)))
+# end
 
-for ωT in ωTs 
+# for ωT in ωTs 
 
-end
+# end
 
-fig
+# fig
 
 # # Plotting particle trajectory variance / MSD 
 # fig = Figure(resolution = (1600, 1200), font = "CMU Serif", fontsize = 36, figure_padding = 40)
