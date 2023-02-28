@@ -531,7 +531,7 @@ function traj_unfold(data, box; periodic = false)
                 σs_final[particle, (τ_id+1):end] = 2 * σs_final[particle, τ_id] .- σs_final[particle, (τ_id+1):end]
             end
         end
-        σs_final[particle,:] = σs_final[particle,:] .- σs_final[particle,1]
+        # σs_final[particle,:] = σs_final[particle,:] .- σs_final[particle,1]
     end
 
     return σs_final
@@ -547,21 +547,22 @@ function Δ_traj_unfold(data, box; periodic = false)
     chain_idx = searchsortedlast(data.ρs[:,1], σs[1])
     max_lattice_pos = maximum(σs) / data.α |> floor |> Int
 
-    # Find the indices halfway between chain masses as chain moves
-    idx = [argmin(abs.(σs .- (n * 0.5 * data.α))) for n in chain_idx:max_lattice_pos]
+    # Find the indices halfway between chain mass rest positions
+    idx = [argmin(abs.(σs .- ((n + 0.5) * data.α))) for n in chain_idx:max_lattice_pos]
     idx = filter(x -> x <= length(σs) - 1, idx)
 
     # Get speeds at these points and corresponding times
     σ_dots = (σs[idx.+1] - σs[idx]) ./ δ
     τs = data.τs[idx]
 
-    # Get the kinetic energy and filter out energies less that potential height
+    # Get the kinetic energy and filter out energies less than potential height
     KE = 0.5 * data.μ * (σ_dots ./ 2 ./ π) .^ 2
-    idx = findall(x -> x > data.Φ, KE)
-    KE = KE[idx]
-    σ_dots = σ_dots[idx]
-    Δs = KE[1:end-1] - KE[2:end]
-    return (σ_dots[1:end-1], Δs)
+    # idx = findall(x -> x > data.Φ, KE)
+    # idx = findall(x -> x > 0, KE)
+    # KE = KE[idx]
+    # σ_dots = σ_dots[idx]
+    Δs = KE[1:end-2] - KE[2:end-1]
+    return (σ_dots[1:end-2], Δs)
 end
 
 # Energy loss DeltaBar in the steady-state limit

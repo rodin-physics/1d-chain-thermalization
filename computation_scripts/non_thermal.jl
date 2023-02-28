@@ -63,24 +63,24 @@ include("../src/main.jl")
 # end
 
 ## FULL TRAJECTORY
-system = load_object("precomputed/systems/System_ωmax10_d60_l300.jld2")
+system = load_object("precomputed/systems/System_ωmax10_d60_l1000.jld2")
 d = 60
-τ = 125                             # Simulation time
+τ = 300                             # Simulation time
 δ = system.δ                        # Time step
 α = 40                              # Distance between chain atoms
 μ = 1
 σ0 = [Int(4.5 * α)]
 
 n_pts = τ / δ |> floor |> Int
-nChain = 100
+nChain = 300
 ρHs = zeros(nChain, n_pts)
 tTraj = ThermalTrajectory(system.ωmax, system.δ, ρHs, nothing)
-mem = Inf
+mem = 10
 
 speeds = range(20, 50, step = 2)
-bias = 0.0
+bias = 0.01
 
-param_vals = vcat(map(ii -> [(2, 4, [ii]), (-2, 4, [ii])], speeds)...)
+param_vals = vcat(map(ii -> [(2, 4, [ii])], speeds)...)
 
 function full_traj(param)
     println(param)
@@ -93,13 +93,15 @@ function full_traj(param)
         )
     )
 
-        res = motion_solver(system, Φ0, λ, α, σ0, σdot0, μ, tTraj, mem, τ)
+        res = motion_solver(system, Φ0, λ, α, σ0, σdot0, μ, tTraj, mem, τ, bias = bias, threads = true)
         save_object(
             "data/Non_Thermal/Single_sigma0$(σ0)_sigmadot0$(σdot0)_Mem$(mem)_lambda$(λ)_Phi$(Φ0)_mu$(μ)_d$(d)_bias$(bias)_omegaT$(nothing)_tau$(τ).jld2",
             res,
         )
     end
 end
+
+full_traj.(param_vals)
 
 ## SUPERSONIC
 # system = load_object("precomputed/systems/System_ωmax10_d1000_l300.jld2")
