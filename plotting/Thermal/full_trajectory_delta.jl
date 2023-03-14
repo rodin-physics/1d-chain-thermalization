@@ -8,8 +8,8 @@ using Random
 Φ0 = 5.0
 λ = 1.0
 ωT = 10.0
-# x_range = range(√((8*π^2*Φ0)/μ), 120, length = 80)
-# x_range_capture = shuffle(range(1, √((8*π^2*Φ0)/μ), length = 40))
+x_range = range(√((8*π^2*Φ0)/μ), 120, length = 80)
+x_range_capture = shuffle(range(1, √((8*π^2*Φ0)/μ), length = 40))
 
 ## Plotting 
 fig = Figure(resolution = (2400, 800), fontsize = 36, figure_padding = 40)
@@ -51,13 +51,13 @@ end
 
 
 # Numerical data 
-mem_ax_pairs = [(1, ax1), (10, ax2)]
+mem_ax_pairs = [(1, ax1), (10, ax2), (100, ax3)]
 
 for pair in mem_ax_pairs
     data = readdlm("data/Thermal/Full_Trajectory/deltas_mem$(pair[1])_ωT$(ωT)_Φ$(Φ0)_λ$(λ)_α$(α).dat")
 
     pick_range = range(1, length(data[1,:]), step = 1)
-    sampled = sample(pick_range, 20000)
+    sampled = sample(pick_range, 40000)
     scatter!(pair[2], data[1,:][sampled], data[2,:][sampled], markersize = 8, color = (my_black, 0.3))
 end
 

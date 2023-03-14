@@ -7,9 +7,9 @@ using Random
 Φ0 = 5.0
 λ = 1.0
 ωT = 10.0
-
-x_range = range(20, 120, length = 70)
+x_range = range(√((8*π^2*Φ0)/μ), 120, length = 80)
 x_range_capture = shuffle(range(1, √((8*π^2*Φ0)/μ), length = 40))
+
 
 function speed_after_pass(init_speed)
     pred_mean = Δ_thermal_analytic(init_speed, Φ0, λ, ωmax, ωT)

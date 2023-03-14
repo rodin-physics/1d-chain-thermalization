@@ -5,10 +5,10 @@ using Random
 α = 10
 μ = 1
 ωmax = 10
-Φ0 = 7.0
+Φ0 = 2.0
 λ = 1.0
 τ = 1000
-ωTs = [1.0, 2.0, 5.0, 10.0, 25.0, 100.0, 250.0]
+ωTs = [1.0, 2.0, 5.0, 10.0, 25.0]
 
 # Load memory kernel and thermal trajectory
 colors = [my_blue, my_green, my_sky, my_orange, my_vermillion, my_red, my_yellow, my_black]
@@ -55,36 +55,36 @@ for path in tTraj_paths
     σdot0 = zeros(nParticles)
 
     tTraj = load_object(path)
-    res = motion_solver(system, Φ0, λ, α, σ0, σdot0, μ, tTraj, 100, τ; threads = true, box = box)
+    res = motion_solver(system, Φ0, λ, α, σ0, σdot0, μ, tTraj, 10, τ; threads = true, box = box)
 
-    save_object("data/Thermal/Thermalization/Particle$(nParticles)_Φ$(Φ0)_λ$(λ)_ωT$(tTraj.ωT)_τ$(τ)_mem100.jld2", res)
+    save_object("data/Thermal/Thermalization/Particle$(nParticles)_Φ$(Φ0)_λ$(λ)_ωT$(tTraj.ωT)_τ$(τ)_mem10.jld2", res)
 end
 
 
 
 ## Plotting
-fig = Figure(resolution = (1600, 1200), font = "CMU Serif", fontsize = 36)
-ax1 = Axis(fig[1, 1], xlabel = L"\mathcal{E} / \omega_T", ylabel = L"\ln(P(\mathcal{E}))", title = L"\Phi = %$(Φ0), \, \lambda = %$(λ), \, \alpha = %$(α)")
+# fig = Figure(resolution = (1600, 1200), font = "CMU Serif", fontsize = 36)
+# ax1 = Axis(fig[1, 1], xlabel = L"\mathcal{E} / \omega_T", ylabel = L"\ln(P(\mathcal{E}))", title = L"\Phi = %$(Φ0), \, \lambda = %$(λ), \, \alpha = %$(α)")
 
-# Line with slope -1 
-lines!(ax1, 0:5, -(0:5), color = my_black, linewidth = 4)
+# # Line with slope -1 
+# lines!(ax1, 0:5, -(0:5), color = my_black, linewidth = 4)
 
-for ωT in ωTs 
-    hist_data = get_particle_energy_dist(load_object("data/Thermal/Thermalization/Particle$(nParticles)_Φ$(Φ0)_λ$(λ)_ωT$(ωT)_τ$(τ)_mem100.jld2"), 2)
+# for ωT in ωTs 
+#     hist_data = get_particle_energy_dist(load_object("data/Thermal/Thermalization/Particle$(nParticles)_Φ$(Φ0)_λ$(λ)_ωT$(ωT)_τ$(τ)_mem100.jld2"), 2)
 
-    scatter!(
-        ax1,
-        (hist_data.edges[1])[1:end-1],
-        # log.(hist_data.weights),
-        log.(hist_data.weights .* sqrt.((hist_data.edges[1])[1:end-1])),
-        color = colors[findfirst(x -> x == ωT, ωTs)],
-        label = L"\omega_T = %$(ωT)",
-        markersize = 12,)
+#     scatter!(
+#         ax1,
+#         (hist_data.edges[1])[1:end-1],
+#         # log.(hist_data.weights),
+#         log.(hist_data.weights .* sqrt.((hist_data.edges[1])[1:end-1])),
+#         color = colors[findfirst(x -> x == ωT, ωTs)],
+#         label = L"\omega_T = %$(ωT)",
+#         markersize = 12,)
 
-end
+# end
 
 
-axislegend(ax1)
+# axislegend(ax1)
 
-save("thermalization_mem100_Φ$(Φ0)_λ$(λ).pdf", fig)
+# save("thermalization_mem100_Φ$(Φ0)_λ$(λ).pdf", fig)
 # fig

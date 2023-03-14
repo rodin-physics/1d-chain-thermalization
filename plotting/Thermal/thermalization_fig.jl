@@ -59,17 +59,17 @@ end
 
 
 ## Plotting
-fig = Figure(resolution = (2400, 800), font = "CMU Serif", fontsize = 36)
+fig = Figure(resolution = (2400, 800), fontsize = 36, figure_padding = 40)
 ax1 = Axis(fig[1, 1], xlabel = L"\mathcal{E} / \omega_T", ylabel = L"\ln(P(\mathcal{E}))", title = L"Memory $\tau_0$ = 1")
 ax2 = Axis(fig[1, 2], xlabel = L"\mathcal{E} / \omega_T", title = L"$\tau_0$ = 10")
 ax3 = Axis(fig[1, 3], xlabel = L"\mathcal{E} / \omega_T", title = L"$\tau_0$ = 100")
 
 # Line with slope -1 
 for ax in [ax1, ax2, ax3]
-    lines!(ax, 0:5, -(0:5), color = my_black, linewidth = 4)
+    lines!(ax, 0:5, -(0:5), color = my_black, linewidth = 5)
 end
 
-mem_ax_pair = [(1,ax1), (10, ax2)]
+mem_ax_pair = [(1,ax1), (10, ax2), (100, ax3)]
 for pair in mem_ax_pair
     for ωT in ωTs 
         println("OmegaT is $(ωT)")
@@ -87,9 +87,12 @@ for pair in mem_ax_pair
     end
 end
 
-
+Label(fig[1,1, TopLeft()], "(a)", font = :bold)
+Label(fig[1,2, TopLeft()], "(b)", font = :bold)
+Label(fig[1,3, TopLeft()], "(c)", font = :bold)
 
 axislegend(ax1, position = :lb)
+axislegend(ax2, position = :lb)
 axislegend(ax2, position = :lb)
 
 fig

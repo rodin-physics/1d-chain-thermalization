@@ -511,7 +511,7 @@ function Δ_traj(data)
 end
 
 ## Unfold particle trajectories given a confining box
-function traj_unfold(data, box; periodic = false)
+function traj_unfold(data, box; periodic = false, minus_init = false)
     σs_final = copy(data.σs)
     num_P = size(data.σs, 1)
 
@@ -531,7 +531,9 @@ function traj_unfold(data, box; periodic = false)
                 σs_final[particle, (τ_id+1):end] = 2 * σs_final[particle, τ_id] .- σs_final[particle, (τ_id+1):end]
             end
         end
-        # σs_final[particle,:] = σs_final[particle,:] .- σs_final[particle,1]
+        if minus_init
+            σs_final[particle,:] = σs_final[particle,:] .- σs_final[particle,1]
+        end
     end
 
     return σs_final

@@ -9,30 +9,14 @@ using Random
 λ = 1.0
 τ = 500
 # ωTs = reverse([0.0, 5.0, 25.0, 100.0, 250.0])
-ωTs = reverse([1.0, 5.0, 10.0, 25.0, 100.0])
-# ωTs = [1.0, 5.0, 10.0, 25.0, 100.0]
+ωTs = [1.0, 2.0, 5.0, 10.0, 25.0] |> reverse
+# ωTs = [1.0, 5.0, 10.0, 25.0, 100.0] |> reverse
 
 # Load memory kernel and thermal trajectory
-colors = reverse([my_red, my_vermillion, my_green, my_blue, my_black])
+colors = [my_blue, my_green, my_sky, my_orange, my_vermillion] |> reverse
 system = load_object("precomputed/systems/System_ωmax10_d60_l1000.jld2")
 tTraj_paths = ["precomputed/rH/rH_ωmax10_d60_ωT$(ωT)_τ1000_lmax300_modes50000.jld2" for ωT in ωTs] 
 
-## Unfold particle trajectories given a confining box
-function traj_unfold(data, box)
-    σs_final = copy(data.σs)
-    num_P = size(data.σs, 1)
-
-    for particle in 1:num_P
-        τ_ids = findall(x -> x < box[1] || x > box[2], σs_final[particle,:])
-
-        for τ_id in τ_ids
-            σs_final[particle, (τ_id+1):end] = 2 * σs_final[particle, τ_id] .- σs_final[particle, (τ_id+1):end]
-        end
-        σs_final[particle,:] = σs_final[particle,:] .- σs_final[particle,1]
-    end
-
-    return σs_final
-end
 
 ## Check if a sign change has occured in an array 
 function sign_change(arr)
@@ -145,18 +129,24 @@ end
 
 
 ## Mean squared deviation of particle trajectories 
-function particle_MSD(data, box)
-    σs_unfolded = traj_unfold(data, box)
+function particle_RMSD(data, box)
+    σs_unfolded = traj_unfold(data, box, minus_init = true)
     return (vec(std(σs_unfolded, dims = 1)), data.τs)
 end
 
+
+## Mean displacement of particles
+function particle_mean_displacement(data, box; periodic = false)
+    σs_unfolded = traj_unfold(data, box, periodic = periodic, minus_init = true)
+    return (vec(mean(σs_unfolded, dims = 1)), data.τs)
+end
 
 ## Plotting particle trajectories
 box_size = 250
 left_boundary = 4.5 * α
 right_boundary = left_boundary + box_size * α
 box = (left_boundary, right_boundary)
-data = load_object("data/Thermal/Thermalization/Particle25_ωT10.0_τ1000_mem10.jld2")
+data = load_object("data/Thermal/Thermalization/Particle25_Φ7.0_λ1.0_ωT1.0_τ1000_mem10.jld2")
 
 # fig = Figure(resolution = (1600, 1200), font = "CMU Serif", fontsize = 36, figure_padding = 40)
 # ax1 = Axis(fig[1, 1], xlabel = L"\tau", ylabel = L"\sigma", title = L"\Phi = %$(data.Φ), \, \lambda = %$(data.λ), \, \alpha = %$(data.α)")
@@ -180,21 +170,32 @@ data = load_object("data/Thermal/Thermalization/Particle25_ωT10.0_τ1000_mem10.
 
 
 ## Plotting particle trajectory variance / MSD 
-# fig = Figure(resolution = (1600, 1200), font = "CMU Serif", fontsize = 36, figure_padding = 40)
-# ax1 = Axis(fig[1, 1], xlabel = L"\tau", ylabel = "Std Dev", title = L"\Phi = %$(data.Φ), \, \lambda = %$(data.λ), \, \alpha = %$(data.α)")
+fig = Figure(resolution = (1600, 1200), fontsize = 36, figure_padding = 40)
+ax1 = Axis(fig[1, 1], xlabel = L"\tau", ylabel = "Std Dev",)
 
-# D0 = 30.0
+D0 = 30.0
 
 # for ωT in ωTs 
-#     data = load_object("data/Thermal/Thermalization/Particle25_ωT$(ωT)_τ500_mem10.jld2")
-#     (msd_vals, times) = particle_MSD(data, box)
+#     data = load_object("data/Thermal/Thermalization/Particle25_Φ7.0_λ1.0_ωT$(ωT)_τ1000_mem10.jld2")
+#     (msd_vals, times) = particle_RMSD(data, box)
 #     lines!(ax1, times, msd_vals, color = colors[findfirst(x -> x == ωT, ωTs)], linewidth = 4, label = L"\omega_T = %$(ωT)")
 
-#     lines!(ax1, times, D0 * sqrt(data.ωT) * exp(-data.Φ / data.ωT) .* sqrt.(times), linewidth = 2, linestyle = :dash, color = colors[findfirst(x -> x == ωT, ωTs)])
+#     lines!(ax1, times[1:100:end], D0 * sqrt(data.ωT) * exp(-data.Φ / data.ωT) .* sqrt.(times[1:100:end]), linewidth = 3, linestyle = :dash, color = colors[findfirst(x -> x == ωT, ωTs)])
 # end
 
-# axislegend(ax1)
-# fig
+for ωT in ωTs 
+    data = load_object("data/Thermal/Thermalization/Particle25_Φ7.0_λ1.0_ωT$(ωT)_τ1000_mem10.jld2")
+    (msd_vals, times) = particle_mean_displacement(data, box)
+    lines!(ax1, times, msd_vals, color = colors[findfirst(x -> x == ωT, ωTs)], linewidth = 4, label = L"\omega_T = %$(ωT)")
+
+    # lines!(ax1, times[1:100:end], D0 * sqrt(data.ωT) * exp(-data.Φ / data.ωT) .* sqrt.(times[1:100:end]), linewidth = 3, linestyle = :dash, color = colors[findfirst(x -> x == ωT, ωTs)])
+end
+
+axislegend(ax1, position = :lt)
+
+# xlims!(ax1, 0, 1000)
+# ylims!(ax1, 0, nothing)
+fig
 
 
 ## Plotting single particle trajectory
@@ -216,18 +217,37 @@ data = load_object("data/Thermal/Thermalization/Particle25_ωT10.0_τ1000_mem10.
 
 ## Plotting density plots of flight lengths + times 
 
-fig = Figure(resolution = (1600, 1200), font = "CMU Serif", fontsize = 36, figure_padding = 40)
+# fig = Figure(resolution = (1600, 1200), fontsize = 36, figure_padding = 40)
 # ax1 = Axis(fig[1, 1], xlabel = "Log(Flight Length)", ylabel = "Log(Density)")
-ax1 = Axis(fig[1, 1], xlabel = "Time until Activation (τ)", ylabel = "Density")
+# # ax1 = Axis(fig[1, 1], xlabel = "Time until Activation (τ)", ylabel = "Density")
 
-for ωT in ωTs
-    data = load_object("data/Thermal/Thermalization/Particle25_ωT$(ωT)_τ1000_mem10.jld2")
+# for ωT in ωTs
+#     data = load_object("data/Thermal/Thermalization/Particle25_Φ7.0_λ1.0_ωT$(ωT)_τ1000_mem10.jld2")
 
-    ## FLIGHT LENGTHS
-    # flight_lengths = vcat(flight_distances(data, unfold = true, box = box)...)
+#     ## FLIGHT LENGTHS
+#     flight_lengths = vcat(flight_distances(data, unfold = true, box = box)...)
 
-    # # density!(ax1, flight_lengths, label = L"\omega_T = %$(ωT)", color = (colors[findfirst(x -> x == ωT, ωTs)], 0.4))
-    # hist_fit = fit(Histogram, flight_lengths, 1:2:120)
+#     # density!(ax1, flight_lengths, label = L"\omega_T = %$(ωT)", color = (colors[findfirst(x -> x == ωT, ωTs)], 0.4))
+#     hist_fit = fit(Histogram, flight_lengths, 1:2:100)
+#     hist_fit = normalize(hist_fit, mode = :pdf)
+#     scatter!(
+#             ax1,
+#             # ((hist_fit.edges[1])[1:end-1]).^(-2/3) .* exp.(-(0.5 / ωT) * (((hist_fit.edges[1])[1:end-1]).^(1/3))),
+#             log.((hist_fit.edges[1])[1:end-1]),
+#             log.(hist_fit.weights),
+#             markersize = 18,
+#             label = L"\omega_T = %$(ωT)",
+#             color = colors[findfirst(x -> x == ωT, ωTs)]
+#         )
+
+    # hist!(ax1, flight_lengths, strokewidth = 2, normalization = :pdf, 
+    # bins = 1:1:50, label = L"\omega_T = %$(ωT)", color = colors[findfirst(x -> x == ωT, ωTs)], scale_to=0.6, offset=findfirst(x -> x == ωT, ωTs))
+
+    ## FLIGHT TIMES
+    # flight_times = vcat(flight_distances(data, unfold = true, box = box, ret_times = true)...)
+    # density!(ax1, flight_times, label = L"\omega_T = %$(ωT)", color = (colors[findfirst(x -> x == ωT, ωTs)], 0.4), strokearound = true, strokewidth = 4, strokecolor = colors[findfirst(x -> x == ωT, ωTs)], npoints = 300)
+    
+    # hist_fit = fit(Histogram, flight_times, 0.01:0.5:20)
     # hist_fit = normalize(hist_fit, mode = :pdf)
     # scatter!(
     #         ax1,
@@ -239,31 +259,12 @@ for ωT in ωTs
     #         color = colors[findfirst(x -> x == ωT, ωTs)]
     #     )
 
-    # hist!(ax1, flight_lengths, strokewidth = 2, normalization = :pdf, 
-    # bins = 1:1:50, label = L"\omega_T = %$(ωT)", color = colors[findfirst(x -> x == ωT, ωTs)], scale_to=0.6, offset=findfirst(x -> x == ωT, ωTs))
-
-    ## FLIGHT TIMES
-    flight_times = vcat(flight_distances(data, unfold = true, box = box, ret_times = true)...)
-    # density!(ax1, flight_times, label = L"\omega_T = %$(ωT)", color = (colors[findfirst(x -> x == ωT, ωTs)], 0.4), strokearound = true, strokewidth = 4, strokecolor = colors[findfirst(x -> x == ωT, ωTs)], npoints = 300)
-    
-    hist_fit = fit(Histogram, flight_times, 0.01:0.5:20)
-    hist_fit = normalize(hist_fit, mode = :pdf)
-    scatter!(
-            ax1,
-            # ((hist_fit.edges[1])[1:end-1]).^(-2/3) .* exp.(-(0.5 / ωT) * (((hist_fit.edges[1])[1:end-1]).^(1/3))),
-            log.((hist_fit.edges[1])[1:end-1]),
-            log.(hist_fit.weights),
-            markersize = 18,
-            label = L"\omega_T = %$(ωT)",
-            color = colors[findfirst(x -> x == ωT, ωTs)]
-        )
-
-end
-# lines!(ax1, range(0, 4.8, length = 100), -1.5 .* range(0, 4.8, length = 100) .- 1.1, linewidth = 4, color = my_black, linestyle = :dash)
+# end
+# lines!(ax1, range(0, 4.3, length = 100), -1.5 .* range(0, 4.3, length = 100) .- 1.1, linewidth = 4, color = my_black, linestyle = :dash)
 
 
-axislegend(ax1, position = :rt)
-# xlims!(ax1, 0, 20)
-# ylims!(ax1, 0, nothing)
-# save("Loglog_plot.pdf", fig)
-fig
+# axislegend(ax1, position = :rt)
+# # xlims!(ax1, 0, 20)
+# # ylims!(ax1, 0, nothing)
+# # save("Loglog_plot.pdf", fig)
+# fig
