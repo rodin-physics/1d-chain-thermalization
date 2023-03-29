@@ -2,6 +2,9 @@
     "folders": [
         {
             "path": "."
+        },
+        {
+            "path": "../PtTe2/PtTe2-experiment"
         }
     ]
 }

@@ -9,14 +9,16 @@ using Random
 λ = 1.0
 τ = 500
 # ωTs = reverse([0.0, 5.0, 25.0, 100.0, 250.0])
-ωTs = [1.0, 2.0, 5.0, 10.0, 25.0] |> reverse
-# ωTs = [1.0, 5.0, 10.0, 25.0, 100.0] |> reverse
+# ωTs = [1.0, 2.0, 5.0, 10.0, 25.0] |> reverse
+ωTs = [1.0, 5.0, 10.0, 25.0, 100.0] |> reverse
 
 # Load memory kernel and thermal trajectory
 colors = [my_blue, my_green, my_sky, my_orange, my_vermillion] |> reverse
 system = load_object("precomputed/systems/System_ωmax10_d60_l1000.jld2")
 tTraj_paths = ["precomputed/rH/rH_ωmax10_d60_ωT$(ωT)_τ1000_lmax300_modes50000.jld2" for ωT in ωTs] 
 
+ωTs = [1.0, 2.0, 5.0, 10.0, 25.0, 100.0, 250.0]
+colors = [my_blue, my_green, my_sky, my_orange, my_vermillion, my_red, my_yellow, my_black]
 
 ## Check if a sign change has occured in an array 
 function sign_change(arr)
@@ -170,10 +172,10 @@ data = load_object("data/Thermal/Thermalization/Particle25_Φ7.0_λ1.0_ωT1.0_τ
 
 
 ## Plotting particle trajectory variance / MSD 
-fig = Figure(resolution = (1600, 1200), fontsize = 36, figure_padding = 40)
-ax1 = Axis(fig[1, 1], xlabel = L"\tau", ylabel = "Std Dev",)
+# fig = Figure(resolution = (1600, 1200), fontsize = 36, figure_padding = 40)
+# ax1 = Axis(fig[1, 1], xlabel = L"\tau", ylabel = "Std Dev",)
 
-D0 = 30.0
+# D0 = 30.0
 
 # for ωT in ωTs 
 #     data = load_object("data/Thermal/Thermalization/Particle25_Φ7.0_λ1.0_ωT$(ωT)_τ1000_mem10.jld2")
@@ -183,19 +185,19 @@ D0 = 30.0
 #     lines!(ax1, times[1:100:end], D0 * sqrt(data.ωT) * exp(-data.Φ / data.ωT) .* sqrt.(times[1:100:end]), linewidth = 3, linestyle = :dash, color = colors[findfirst(x -> x == ωT, ωTs)])
 # end
 
-for ωT in ωTs 
-    data = load_object("data/Thermal/Thermalization/Particle25_Φ7.0_λ1.0_ωT$(ωT)_τ1000_mem10.jld2")
-    (msd_vals, times) = particle_mean_displacement(data, box)
-    lines!(ax1, times, msd_vals, color = colors[findfirst(x -> x == ωT, ωTs)], linewidth = 4, label = L"\omega_T = %$(ωT)")
+# for ωT in ωTs 
+#     data = load_object("data/Thermal/Thermalization/Particle25_Φ7.0_λ1.0_ωT$(ωT)_τ1000_mem10.jld2")
+#     (msd_vals, times) = particle_mean_displacement(data, box)
+#     lines!(ax1, times, msd_vals, color = colors[findfirst(x -> x == ωT, ωTs)], linewidth = 4, label = L"\omega_T = %$(ωT)")
 
-    # lines!(ax1, times[1:100:end], D0 * sqrt(data.ωT) * exp(-data.Φ / data.ωT) .* sqrt.(times[1:100:end]), linewidth = 3, linestyle = :dash, color = colors[findfirst(x -> x == ωT, ωTs)])
-end
+#     # lines!(ax1, times[1:100:end], D0 * sqrt(data.ωT) * exp(-data.Φ / data.ωT) .* sqrt.(times[1:100:end]), linewidth = 3, linestyle = :dash, color = colors[findfirst(x -> x == ωT, ωTs)])
+# end
 
-axislegend(ax1, position = :lt)
+# axislegend(ax1, position = :lt)
 
-# xlims!(ax1, 0, 1000)
-# ylims!(ax1, 0, nothing)
-fig
+# # xlims!(ax1, 0, 1000)
+# # ylims!(ax1, 0, nothing)
+# fig
 
 
 ## Plotting single particle trajectory
@@ -217,35 +219,36 @@ fig
 
 ## Plotting density plots of flight lengths + times 
 
-# fig = Figure(resolution = (1600, 1200), fontsize = 36, figure_padding = 40)
-# ax1 = Axis(fig[1, 1], xlabel = "Log(Flight Length)", ylabel = "Log(Density)")
-# # ax1 = Axis(fig[1, 1], xlabel = "Time until Activation (τ)", ylabel = "Density")
+fig = Figure(resolution = (1600, 1200), fontsize = 40, figure_padding = 40)
+ax1 = Axis(fig[1, 1], xlabel = "Log(Flight Length)", ylabel = "Log(Density)")
+# ax1 = Axis(fig[1, 1], xlabel = "Time until Activation (τ)", ylabel = "Density")
 
-# for ωT in ωTs
-#     data = load_object("data/Thermal/Thermalization/Particle25_Φ7.0_λ1.0_ωT$(ωT)_τ1000_mem10.jld2")
+for ωT in ωTs
+    println(ωT)
+    data = load_object("data/Thermal/Thermalization/Particle25_Φ7.0_λ1.0_ωT$(ωT)_τ1000_mem10.jld2")
 
-#     ## FLIGHT LENGTHS
-#     flight_lengths = vcat(flight_distances(data, unfold = true, box = box)...)
+    ## FLIGHT LENGTHS
+    flight_lengths = vcat(flight_distances(data, unfold = true, box = box)...)
 
-#     # density!(ax1, flight_lengths, label = L"\omega_T = %$(ωT)", color = (colors[findfirst(x -> x == ωT, ωTs)], 0.4))
-#     hist_fit = fit(Histogram, flight_lengths, 1:2:100)
-#     hist_fit = normalize(hist_fit, mode = :pdf)
-#     scatter!(
-#             ax1,
-#             # ((hist_fit.edges[1])[1:end-1]).^(-2/3) .* exp.(-(0.5 / ωT) * (((hist_fit.edges[1])[1:end-1]).^(1/3))),
-#             log.((hist_fit.edges[1])[1:end-1]),
-#             log.(hist_fit.weights),
-#             markersize = 18,
-#             label = L"\omega_T = %$(ωT)",
-#             color = colors[findfirst(x -> x == ωT, ωTs)]
-#         )
+    # density!(ax1, flight_lengths, label = L"\omega_T = %$(ωT)", color = (colors[findfirst(x -> x == ωT, ωTs)], 0.4))
+    hist_fit = fit(Histogram, flight_lengths, 1:2:100)
+    hist_fit = normalize(hist_fit, mode = :pdf)
+    scatter!(
+            ax1,
+            # ((hist_fit.edges[1])[1:end-1]).^(-2/3) .* exp.(-(0.5 / ωT) * (((hist_fit.edges[1])[1:end-1]).^(1/3))),
+            log.((hist_fit.edges[1])[1:end-1]),
+            log.(hist_fit.weights),
+            markersize = 18,
+            label = L"\omega_T = %$(ωT)",
+            color = colors[findfirst(x -> x == ωT, ωTs)]
+        )
 
     # hist!(ax1, flight_lengths, strokewidth = 2, normalization = :pdf, 
     # bins = 1:1:50, label = L"\omega_T = %$(ωT)", color = colors[findfirst(x -> x == ωT, ωTs)], scale_to=0.6, offset=findfirst(x -> x == ωT, ωTs))
 
-    ## FLIGHT TIMES
+    # FLIGHT TIMES
     # flight_times = vcat(flight_distances(data, unfold = true, box = box, ret_times = true)...)
-    # density!(ax1, flight_times, label = L"\omega_T = %$(ωT)", color = (colors[findfirst(x -> x == ωT, ωTs)], 0.4), strokearound = true, strokewidth = 4, strokecolor = colors[findfirst(x -> x == ωT, ωTs)], npoints = 300)
+    # # density!(ax1, flight_times, label = L"\omega_T = %$(ωT)", color = (colors[findfirst(x -> x == ωT, ωTs)], 0.4), strokearound = true, strokewidth = 4, strokecolor = colors[findfirst(x -> x == ωT, ωTs)], npoints = 300)
     
     # hist_fit = fit(Histogram, flight_times, 0.01:0.5:20)
     # hist_fit = normalize(hist_fit, mode = :pdf)
@@ -259,12 +262,12 @@ fig
     #         color = colors[findfirst(x -> x == ωT, ωTs)]
     #     )
 
-# end
-# lines!(ax1, range(0, 4.3, length = 100), -1.5 .* range(0, 4.3, length = 100) .- 1.1, linewidth = 4, color = my_black, linestyle = :dash)
+end
+lines!(ax1, range(0, 4.5, length = 100), -1.5 .* range(0, 4.5, length = 100) .- 1.1, linewidth = 4, color = my_black, linestyle = :dash)
 
 
-# axislegend(ax1, position = :rt)
-# # xlims!(ax1, 0, 20)
-# # ylims!(ax1, 0, nothing)
-# # save("Loglog_plot.pdf", fig)
-# fig
+axislegend(ax1, position = :rt)
+# xlims!(ax1, 0, 20)
+# ylims!(ax1, 0, nothing)
+# save("Loglog_plot.pdf", fig)
+fig

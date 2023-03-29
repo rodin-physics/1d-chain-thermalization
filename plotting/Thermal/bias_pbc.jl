@@ -47,7 +47,7 @@ right_boundary = left_boundary + box_size * α
 box = (left_boundary, right_boundary)
 
 σ0 = [box[1] + α]
-bias_val = 0.01 / 4
+bias_val = 0.01
 
 # Finite speeds with bias
 # for tTraj_path in tTraj_paths

@@ -1,12 +1,12 @@
 include("../../src/main.jl")
 
 ## Parameters
-α = 10
+α = 40
 μ = 1
 ωmax = 10
-Φ0 = 5.0
-λ = 1.0
-τ = 300
+Φ0 = 20.0
+λ = 4.0
+τ = 400
 # ωTs = reverse([0.0, 5.0, 25.0, 100.0, 250.0])
 ωTs = reverse([1.0, 5.0, 10.0, 25.0, 100.0])
 
@@ -40,7 +40,7 @@ right_boundary = left_boundary + box_size * α
 box = (left_boundary, right_boundary)
 
 # num_trajs = 996 * 0.5 |> Int
-num_trajs = 100
+num_trajs = 249
 particles_per_traj = box_size - 1
 batches = ones(num_trajs ÷ particles_per_traj) * particles_per_traj
 if num_trajs % particles_per_traj != 0 
@@ -49,7 +49,7 @@ end
 
 ## Precompute the thermal trajectories
 d = 60
-τmax = 300                     # Simulation time
+τmax = 800                     # Simulation time
 δ = (1 / ωmax) / d              # Time step
 n_pts = floor(τmax / δ) |> Int  # Number of time steps given t_max and δ
 n_modes = 5000                 # Number of chain masses for simulating ρ0
@@ -60,8 +60,9 @@ lmax = 300
 ε = reduce(hcat, [exp.(1im * 2 * π / n_modes .* (1:n_modes) * g) for g = 1:lmax])
 
 ωT = 10.0
-init_speed = 80
+init_speed = 120
 x_range = range(20, 100, length = 70)
+speed_range = range(30, 80, step = 1.0)
 
 function full_trajectory(mem)
     # ## Plotting 

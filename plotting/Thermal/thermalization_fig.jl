@@ -39,7 +39,7 @@ function get_particle_energy_dist(data, box)
 
         midpoint = floor.(curr_σs .- data.α / 2)
         idx = findall(x -> x != 0, midpoint[2:end] - midpoint[1:end-1])
-        kin_en = ((curr_σs[idx] - curr_σs[idx.-1]) ./ δ) .^ 2 ./ 2 ./ data.ωT ./ (2 * pi)^2
+        kin_en = ((curr_σs[idx] - curr_σs[idx.-1]) ./ δ) .^ 2 ./ 2 ./ effective_T(data.ωmax, data.ωT) ./ (2 * pi)^2
 
         
         # pot_en = [sum((data.Φ .* exp.(-(data.ρs[:, t] .- data.σs[particle, t]) .^ 2 ./ (2 * data.λ^2))) ./ data.ωT) for t in eachindex(data.σs[particle, :])]
@@ -47,10 +47,11 @@ function get_particle_energy_dist(data, box)
         # idx = findall(x -> x < 1e-3, pot_en)
         # ens = kin_en[idx]
         # ens = vcat(ens, kin_en + pot_en)
+        # ens = vcat(ens, kin_en[Int(floor(0.1*length(kin_en))):end])
         ens = vcat(ens, kin_en)
     end
 
-    hist_fit = fit(Histogram, ens |> vec, 0.0:0.025:5)
+    hist_fit = fit(Histogram, ens |> vec, 0.0:0.05:5)
     hist_fit = normalize(hist_fit, mode = :pdf)
 
     return hist_fit
@@ -60,14 +61,9 @@ end
 
 ## Plotting
 fig = Figure(resolution = (2400, 800), fontsize = 36, figure_padding = 40)
-ax1 = Axis(fig[1, 1], xlabel = L"\mathcal{E} / \omega_T", ylabel = L"\ln(P(\mathcal{E}))", title = L"Memory $\tau_0$ = 1")
-ax2 = Axis(fig[1, 2], xlabel = L"\mathcal{E} / \omega_T", title = L"$\tau_0$ = 10")
-ax3 = Axis(fig[1, 3], xlabel = L"\mathcal{E} / \omega_T", title = L"$\tau_0$ = 100")
-
-# Line with slope -1 
-for ax in [ax1, ax2, ax3]
-    lines!(ax, 0:5, -(0:5), color = my_black, linewidth = 5)
-end
+ax1 = Axis(fig[1, 1], xlabel = L"\mathcal{E} / \omega_T", ylabel = L"\ln(P(\mathcal{E}))", title = L"Memory $\tau_0$ = 1", xgridvisible = false, ygridvisible = false)
+ax2 = Axis(fig[1, 2], xlabel = L"\mathcal{E} / \omega_T", title = L"$\tau_0$ = 10", xgridvisible = false, ygridvisible = false)
+ax3 = Axis(fig[1, 3], xlabel = L"\mathcal{E} / \omega_T", title = L"$\tau_0$ = 100", xgridvisible = false, ygridvisible = false)
 
 mem_ax_pair = [(1,ax1), (10, ax2), (100, ax3)]
 for pair in mem_ax_pair
@@ -87,12 +83,18 @@ for pair in mem_ax_pair
     end
 end
 
+# Line with slope -1 
+for ax in [ax1, ax2, ax3]
+    lines!(ax, 0:5, -(0:5), color = my_black, linewidth = 4)
+end
+
+
 Label(fig[1,1, TopLeft()], "(a)", font = :bold)
 Label(fig[1,2, TopLeft()], "(b)", font = :bold)
 Label(fig[1,3, TopLeft()], "(c)", font = :bold)
 
 axislegend(ax1, position = :lb)
 axislegend(ax2, position = :lb)
-axislegend(ax2, position = :lb)
+axislegend(ax3, position = :lb)
 
 fig

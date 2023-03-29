@@ -13,19 +13,19 @@ system = load_object("precomputed/systems/System_ωmax10_d60_l10000_τmax5.jld2"
 ## Computation 
 σdot0 = 50.0
 ωT = 0.0
-colors = [my_blue, my_vermillion, my_yellow]
+colors = [my_blue, my_green, my_vermillion]
 ωTs = [0.0, 5.0, 25.0]
 
 
 
 
 ## Plotting density compared to predicted distribution
-fig = Figure(resolution = (1600, 1200), fontsize = 40, figure_padding = 30)
-ax1 = Axis(fig[1, 1], xlabel = L"\Delta", ylabel = "Probability Density")
+fig = Figure(resolution = (1200, 1000), fontsize = 40, figure_padding = 30)
+ax1 = Axis(fig[1, 1], xlabel = L"\Delta", ylabel = "Probability Density", xgridvisible = false, ygridvisible = false)
 
 for ωT in ωTs 
     Δs = readdlm("data/Thermal/ωT$(ωT)/delta_ωmax10_speed$(σdot0)_ωT$(ωT).dat") |> vec
-    density!(ax1, Δs, npoints = 200, label = "Numerical", color = (colors[findfirst(x -> x == ωT, ωTs)],  0.5))
+    hist!(ax1, Δs, npoints = 200, label = "Numerical", color = (colors[findfirst(x -> x == ωT, ωTs)],  0.5), normalization = :pdf, bins = 100)
 
     pred_mean = Δ_thermal_analytic(σdot0, Φ0, λ, ωmax, ωT)
     pred_var = Δ_thermal_variance(σdot0, Φ0, λ, ωmax, ωT)

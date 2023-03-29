@@ -77,6 +77,15 @@ function C_corr(τ, ls, ωmax, ωT)
     return (res[1] / π)
 end
 
+# Covariance matrix between chain mass displacements
+function effective_T(ωmax, ωT)
+    int_fun(x) = ω(ωmax, x) * coth(ω(ωmax, x) / 2 / ωT)
+    res = quadgk(int_fun, 0, π / 2, atol=1e-8)
+    return (res[1] / π)
+end
+
+
+
 
 # Precompute recoil term and take existing files into account
 function mkChainSystem(ωmax, τ_max, lmax, d, Γ_prev)
@@ -421,7 +430,7 @@ function motion_solver_test(
         nxt = ii        # Next time step index
         curr = ii - 1   # Current time step index
 
-        if check_stuck && σ_dot[1] < 0.0
+        if check_stuck && σ_dot[1] <= 0
             final_ind = curr
             break
         end
@@ -628,8 +637,8 @@ function Δ_thermal_analytic(v, Φ, λ, Ω, ωT)
         return sol
     end
                     
-    τlim = min(30 / v, 3)
-    res = hcubature(x -> int_func(x[1], x[2]), [0, -τlim], [π/2, τlim], rtol = 1e-2)
+    τlim = min(30 / v, 15)
+    res = hcubature(x -> int_func(x[1], x[2]), [0, -τlim], [π/2, τlim], rtol = 1e-3)
 
     return factor*res[1]*2/π |> real
 end
@@ -646,7 +655,7 @@ function Δ_thermal_variance(v, Φ, λ, Ω, ωT)
                 (λ^2 + Complex(C_NN_func(0) - C_NN_func(τ)))^(5/2)
 
 
-    res = quadgk(int_func, -10, 10, atol = 1e-8)
+    res = quadgk(int_func, -40, 40, atol = 1e-9)
     
     return factor*res[1] |> real
 end

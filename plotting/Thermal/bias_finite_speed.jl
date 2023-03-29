@@ -6,7 +6,7 @@ include("../../src/main.jl")
 ωmax = 10
 Φ0 = 2.0
 λ = 4.0
-τ = 150
+τ = 1000
 bias_val = 0.01
 
 ωT = 0.0
@@ -21,10 +21,10 @@ box = (left_boundary, right_boundary)
 
 nParticles = 25
 total_num = nParticles * 40
-particles_per_traj = nParticles * 4
+per_traj = 4
+particles_per_traj = nParticles * per_traj
 
-v_initials = Float64[]
-v_finals = Float64[]
+speed_array = zeros(5, total_num)
 
 ## Unfold particle trajectories given a confining box
 function traj_unfold(data, box; periodic = false)
@@ -55,7 +55,7 @@ end
 
 # Thermal trajectory parameters
 d = 60
-τmax = 150                     # Simulation time
+τmax = 1000                     # Simulation time
 δ = (1 / ωmax) / d              # Time step
 n_pts = floor(τmax / δ) |> Int  # Number of time steps given t_max and δ
 n_modes = 5000                 # Number of chain masses for simulating ρ0
@@ -66,7 +66,11 @@ lmax = 260
 ε = reduce(hcat, [exp.(1im * 2 * π / n_modes .* (1:n_modes) * g) for g = 1:lmax])
 
 
-function generate_final_speeds(v_init, v_final)
+function generate_final_speeds(speed_data)
+    # Time interval at which data should be saved 
+    num_interval = size(speed_data,1)
+    save_time = Int(τ/(num_interval-1))
+
     for traj_ind in 1:(total_num ÷ particles_per_traj)
         ## Generate thermal trajectory 
         ζs = ζq.(ωs, ωT)
@@ -88,25 +92,32 @@ function generate_final_speeds(v_init, v_final)
             init_pos = (box[2] + box[1] - α) / 2 .* ones(nParticles) + 10 * α * randn(nParticles)
     
             data = motion_solver(system, Φ0, λ, α, init_pos, init_speeds, μ, curr_traj, 10, τ; threads = true, box = box, periodic = true, bias = bias_val)
-    
-            # Get the final speeds after 150τ
+            
+            # Add initial speeds to matrix
+            curr_ind = (traj_ind - 1) * per_traj + run_ind
+            curr_indices = (curr_ind * nParticles) - (nParticles - 1):(curr_ind * nParticles)
+            speed_data[1, curr_indices] = init_speeds
+
+
+            # Get the final speeds after at each time interval
             data_unfold = traj_unfold(data, box, periodic = true)
-            final_speeds = (data_unfold[:, end] .- data_unfold[:, end-1]) ./ δ
-    
-            v_init = vcat(v_init, init_speeds)
-            v_final = vcat(v_final, final_speeds)
-        
+            time_indices = vcat(findall(x -> x % save_time == 0, data.τs), lastindex(data.τs))
+
+            for ii in 2:num_interval
+                final_speeds = (data_unfold[:, time_indices[ii-1]] .- data_unfold[:, time_indices[ii-1]-1]) ./ δ
+
+                speed_data[ii, curr_indices] = final_speeds
+            end
+
         end
     
     end
 
     ## Save data 
-    writedlm("Initial_speeds_α$(α)_Φ$(Φ0)_λ$(λ)_bias$(bias_val)_T$(ωT).dat", v_init)
-    writedlm("Final_speeds_α$(α)_Φ$(Φ0)_λ$(λ)_bias$(bias_val)_T$(ωT).dat", v_final)   
-
+    writedlm("Speeds_$(τ)τ_inter$(save_time)_α$(α)_Φ$(Φ0)_λ$(λ)_bias$(bias_val)_T$(ωT).dat", speed_data)
 end
 
-generate_final_speeds(v_initials, v_finals)
+generate_final_speeds(speed_array)
 
 
 
